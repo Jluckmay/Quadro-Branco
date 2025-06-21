@@ -1,7 +1,6 @@
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Query
 from starlette.websockets import WebSocketState
 import threading
-import json
 from core_client import start_connection
 from supabase import create_client, Client
 
