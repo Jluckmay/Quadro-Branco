@@ -1219,64 +1219,57 @@ class WhiteboardApp {
     }
 
     connectWebSocket() {
-            this.socket = new WebSocket("wss://quadrobranco-ffap.onrender.com/ws/frontend");
+        this.socket = new WebSocket("wss://quadrobranco-ffap.onrender.com/ws/frontend");
 
-            this.socket.onopen = () => {
-                console.log("✅ Conectado ao backend");
-            };
+        this.socket.onopen = () => {
+            console.log("✅ Conectado ao backend");
+        };
 
-            this.socket.onmessage = (event) => {
-                    const data = JSON.parse(event.data);
-                    console.log("📥 Mensagem do backend:", data);
+        this.socket.onmessage = (event) => {
+            const data = JSON.parse(event.data);
+            console.log("📥 Mensagem do backend:", data);
 
-                    if (data.tipo === "desenho") {
-                        switch (data.acao) {
-                            case "novo_objeto":
-                                this.state.objects.push(data.conteudo);
-                                break;
+            if (data.tipo === "desenho") {
+                switch (data.acao) {
+                    case "novo_objeto":
+                        this.state.objects.push(data.conteudo);
+                        break;
 
-                            case "remover_objeto":
-                                const idx = data.conteudo.index;
-                                if (typeof idx === "number" && idx >= 0 && idx < this.state.objects.length) {
-                                    this.state.objects.splice(idx, 1);
-                                }
-                                break;
-
-
-                            case "mover_objeto":
-                                // Substitui objeto antigo pelo novo (simplificado)
-                                const moved = data.conteudo;
-                                if (moved.index >= 0) {
-                                    this.state.objects[moved.index] = moved.objeto;
-                                }
-                                break;
-
-                            case "resetar":
-                                this.state.objects = [];
-                                break;
-
-                            case "undo":
-                            case "redo":
-                                // Aqui depende se você envia o objeto atualizado
-                                this.state.objects = data.conteudo;
-                                break;
+                    case "remover_objeto":
+                        const idx = data.conteudo.index;
+                        if (typeof idx === "number" && idx >= 0 && idx < this.state.objects.length) {
+                            this.state.objects.splice(idx, 1);
                         }
+                        break;
 
-                        this.redrawCanvas(); // Atualiza o canvas após qualquer mudança
-                    }
 
-                    this.redrawCanvas();
-                } <<
-                <<
-                << < HEAD
+                    case "mover_objeto":
+                        // Substitui objeto antigo pelo novo (simplificado)
+                        const moved = data.conteudo;
+                        if (moved.index >= 0) {
+                            this.state.objects[moved.index] = moved.objeto;
+                        }
+                        break;
 
-        } ===
-        ===
-        =
-}; >>>
->>>
-> 1 b9be21c8cffb74cc42c6108e64809988fe7834e
-}
+                    case "resetar":
+                        this.state.objects = [];
+                        break;
+
+                    case "undo":
+                    case "redo":
+                        // Aqui depende se você envia o objeto atualizado
+                        this.state.objects = data.conteudo;
+                        break;
+                }
+
+                this.redrawCanvas(); // Atualiza o canvas após qualquer mudança
+            }
+
+            this.redrawCanvas();
+        }
+
+    }
+};
 
 
 GeometricShapes = {
