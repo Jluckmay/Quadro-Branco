@@ -1,0 +1,117 @@
+body {
+    margin: 0;
+    padding: 0;
+    font-family: Arial, sans-serif;
+    background-color: #f5f5f5;
+    overflow: hidden;
+}
+
+body.dark-mode {
+    background-color: #121212;
+    color: #ffffff;
+}
+
+#app {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+}
+
+.toolbar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px;
+    background-color: #f1f1f1;
+    border-bottom: 1px solid #ddd;
+    flex-wrap: wrap; 
+}
+
+body.dark-mode .toolbar {
+    background-color: #1e1e1e;
+    border-bottom: 1px solid #333;
+}
+
+.tool-btn {
+    min-width: 100px;  
+    max-width: 100px;  
+    text-align: center;
+    white-space: nowrap;  
+    overflow: hidden;  
+    text-overflow: ellipsis;  
+    margin: 2px;  
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+body.dark-mode .tool-btn {
+    background-color: #333;
+    color: #ffffff;
+}
+
+#color-picker {
+    width: 50px;
+    height: 38px;
+    padding: 0;
+    margin-right: 10px;
+}
+
+.tool-btn.active {
+    background-color: #007bff;
+    color: white;
+}
+
+#canvas-container {
+    flex-grow: 1;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    background-color: #e0e0e0;
+}
+
+body.dark-mode #canvas-container {
+    background-color: #2e2e2e;
+}
+
+#whiteboard {
+    background-color: white;
+    box-shadow: 0 0 10px rgba(0,0,0,0.1);
+    cursor: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 20 20" fill="black"><circle cx="10" cy="10" r="5"/></svg>') 10 10, auto;
+}
+
+body.dark-mode #whiteboard {
+    background-color: #1e1e1e;
+    box-shadow: 0 0 10px rgba(255, 255, 255, 0.1);
+}
+
+.modal-body input {
+    margin-bottom: 10px;
+}
+
+.dropdown-menu {
+    min-width: 150px;
+}
+
+.dropdown-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.dropdown .tool-btn {
+    width: 100px;
+    justify-content: space-between;
+}
+
+@media (max-width: 768px) {
+    .toolbar {
+        justify-content: center;
+    }
+    
+    .tool-btn {
+        min-width: 70px;  
+        max-width: 100px;
+        margin: 2px;
+    }
+}
