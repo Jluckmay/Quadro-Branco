@@ -21,8 +21,8 @@ core_ws = None
 @app.websocket("/ws/frontend")
 async def websocket_frontend(websocket: WebSocket, token: str = Query(None)):
     await websocket.accept()
-        usuario_email = "anonimo"
-        usuario_id = "visitante"
+    usuario_email = "anonimo"
+    usuario_id = "visitante"
     # Se for o início da conexão, consulta o estado do quadro no Supabase e envia para o frontend
     try:
         response = supabase.table("objetos").select("*").eq("sessao_id", "sessao123").execute()
