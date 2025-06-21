@@ -1235,6 +1235,15 @@ class WhiteboardApp {
             const data = JSON.parse(event.data);
             console.log("📥 Mensagem do backend:", data);
 
+            // Trata o estado inicial recebido do backend
+            if (data.tipo === "estado_inicial") {
+                // Substitui todos os objetos atuais pelos recebidos do backend
+                this.state.objects = data.objetos || [];
+                this.redrawCanvas();
+                return; // Não processa mais nada para esta mensagem
+            }
+
+
             if (data.tipo === "desenho") {
                 switch (data.acao) {
                     case "novo_objeto":

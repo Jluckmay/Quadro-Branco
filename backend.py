@@ -34,7 +34,7 @@ async def websocket_frontend(websocket: WebSocket, token: str = Query(None)):
         await websocket.close()
         return
     
-     # Se for o início da conexão, consulta o estado do quadro no Supabase e envia para o frontend
+    # Se for o início da conexão, consulta o estado do quadro no Supabase e envia para o frontend
     try:
         response = supabase.table("objetos").select("*").eq("sessao_id", "sessao123").execute()
         objetos = response.data if hasattr(response, "data") else response
