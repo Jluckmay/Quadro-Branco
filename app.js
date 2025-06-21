@@ -1,21 +1,21 @@
 class WhiteboardState {
     constructor() {
         this.objects = [];
-        this.undoHistory = []; 
-        this.redoHistory = []; 
-        this.actionHistory = []; 
+        this.undoHistory = [];
+        this.redoHistory = [];
+        this.actionHistory = [];
     }
 
     addObject(obj) {
         this.objects.push(obj);
-        this.redoHistory = []; 
+        this.redoHistory = [];
         this.undoHistory = [];
         return this.objects.length - 1;
     }
 
     removeObject(index) {
         const removedObject = this.objects.splice(index, 1)[0];
-        this.redoHistory = []; 
+        this.redoHistory = [];
         this.undoHistory = [];
         return removedObject;
     }
@@ -24,7 +24,7 @@ class WhiteboardState {
         if (this.objects.length > 0) {
             const removedObject = this.objects.pop();
             this.undoHistory.push(removedObject);
-            this.redoHistory.push(removedObject); 
+            this.redoHistory.push(removedObject);
             return removedObject;
         }
         return null;
@@ -45,13 +45,13 @@ class WhiteboardState {
 
     recordAction(action) {
         this.actionHistory.push(action);
-        this.redoHistory = []; 
+        this.redoHistory = [];
         this.undoHistory = [];
     }
 
     undoLastAction() {
         if (this.actionHistory.length === 0) return null;
-        
+
         const lastAction = this.actionHistory.pop();
         return lastAction;
     }
@@ -62,47 +62,47 @@ class WhiteboardApp {
         this.canvas = document.getElementById('whiteboard');
         this.ctx = this.canvas.getContext('2d');
         this.colorPicker = document.getElementById('color-picker');
-        
+
         this.state = new WhiteboardState();
-        
+
         this.currentTool = 'pencil';
         this.isDrawing = false;
-        
+
         this.selectedObjects = [];
-        
+
         this.currentColor = '#000000';
         this.currentObject = null;
         this.startX = 0;
         this.startY = 0;
-        
+
         this.isDraggingObject = false;
         this.dragOffsetX = 0;
         this.dragOffsetY = 0;
-        
-        this.selectionColor = 'rgba(0, 123, 255, 0.3)'; 
-        
+
+        this.selectionColor = 'rgba(0, 123, 255, 0.3)';
+
         // Multiplayer setup
         this.room = null;
         this.socket = null;
-        
+
         this.initializeCanvas();
         this.setupEventListeners();
         this.setupMultiplayer();
         this.setupLocalDrawingSync()
         this.connectWebSocket();
     }
-    
+
     initializeCanvas() {
         this.resizeCanvas();
         window.addEventListener('resize', () => this.resizeCanvas());
     }
-    
+
     resizeCanvas() {
         this.canvas.width = window.innerWidth;
         this.canvas.height = window.innerHeight - 60;
         this.redrawCanvas();
     }
-    
+
     setupEventListeners() {
         document.querySelectorAll('.dropdown-item').forEach(btn => {
             btn.addEventListener('click', (e) => {
@@ -123,7 +123,7 @@ class WhiteboardApp {
         this.colorPicker.addEventListener('change', (e) => {
             this.currentColor = e.target.value;
         });
-        
+
         this.canvas.addEventListener('mousedown', (e) => {
             if (this.currentTool === 'eraser') {
                 this.handleDeletion(e);
@@ -148,10 +148,10 @@ class WhiteboardApp {
             }
         });
         this.canvas.addEventListener('mouseout', () => this.stopDrawing());
-        
+
         document.getElementById('undo-btn').addEventListener('click', () => this.undo());
         document.getElementById('redo-btn').addEventListener('click', () => this.redo());
-        
+
         document.getElementById('join-room-btn').addEventListener('click', () => this.initializeMultiplayerRoom());
 
         document.getElementById('delete-tool').addEventListener('click', () => {
@@ -173,7 +173,7 @@ class WhiteboardApp {
                 // Send the "clean" action to the backend
                 if (this.socket && this.socket.readyState === WebSocket.OPEN) {
                     this.socket.send(JSON.stringify({
-                        usuario: document.getElementById('username')?.value || "Anônimo",
+                        usuario: document.getElementById("auth-email").value,
                         tipo: "desenho",
                         acao: "resetar",
                         conteudo: []
@@ -186,31 +186,31 @@ class WhiteboardApp {
             document.body.classList.toggle('dark-mode');
         });
     }
-    
+
     selectTool(tool) {
         document.querySelectorAll('.tool-btn').forEach(btn => {
             btn.classList.remove('active');
         });
-        
+
         document.querySelector(`[data-tool="${tool}"]`).classList.add('active');
-        
+
         this.currentTool = tool;
-        this.selectedObjects = []; 
+        this.selectedObjects = [];
     }
-    
+
     startDrawing(e) {
         this.isDrawing = true;
         const rect = this.canvas.getBoundingClientRect();
         this.startX = e.clientX - rect.left;
         this.startY = e.clientY - rect.top;
-        
-        switch(this.currentTool) {
+
+        switch (this.currentTool) {
             case 'pencil':
                 this.ctx.beginPath();
                 this.ctx.moveTo(this.startX, this.startY);
                 this.currentObject = {
                     type: 'pencil',
-                    points: [{x: this.startX, y: this.startY}],
+                    points: [{ x: this.startX, y: this.startY }],
                     color: this.currentColor
                 };
                 break;
@@ -241,21 +241,21 @@ class WhiteboardApp {
                 break;
         }
     }
-    
+
     draw(e) {
         if (!this.isDrawing) return;
-        
+
         const rect = this.canvas.getBoundingClientRect();
         const x = e.clientX - rect.left;
         const y = e.clientY - rect.top;
-        
+
         this.ctx.strokeStyle = this.currentColor;
         this.ctx.fillStyle = this.currentColor;
-        
-        switch(this.currentTool) {
+
+        switch (this.currentTool) {
             case 'eraser':
                 this.objects = this.state.getObjects().filter(obj => {
-                    switch(obj.type) {
+                    switch (obj.type) {
                         case 'text':
                             return !this.isPointNearText(x, y, obj, 20);
                         case 'rect':
@@ -275,23 +275,23 @@ class WhiteboardApp {
                 this.ctx.lineWidth = 2;
                 this.ctx.lineCap = 'round';
                 this.ctx.stroke();
-                this.currentObject.points.push({x, y});
+                this.currentObject.points.push({ x, y });
                 break;
             case 'rect':
                 this.redrawCanvas();
                 this.ctx.beginPath();
                 this.ctx.strokeStyle = this.currentColor;
                 this.ctx.strokeRect(
-                    Math.min(this.startX, x), 
-                    Math.min(this.startY, y), 
-                    Math.abs(x - this.startX), 
+                    Math.min(this.startX, x),
+                    Math.min(this.startY, y),
+                    Math.abs(x - this.startX),
                     Math.abs(y - this.startY)
                 );
                 break;
             case 'circle':
                 this.redrawCanvas();
                 const radius = Math.sqrt(
-                    Math.pow(x - this.startX, 2) + 
+                    Math.pow(x - this.startX, 2) +
                     Math.pow(y - this.startY, 2)
                 );
                 this.ctx.beginPath();
@@ -309,13 +309,13 @@ class WhiteboardApp {
                 break;
         }
     }
-    
+
     stopDrawing(e) {
         if (!this.isDrawing) return;
-        
+
         this.isDrawing = false;
-        
-        switch(this.currentTool) {
+
+        switch (this.currentTool) {
             case 'pencil':
                 if (this.currentObject && this.currentObject.points.length > 1) {
                     const index = this.state.addObject(this.currentObject);
@@ -329,7 +329,7 @@ class WhiteboardApp {
                 const rect = this.canvas.getBoundingClientRect();
                 const x = e.clientX - rect.left;
                 const y = e.clientY - rect.top;
-                
+
                 const newObject = {
                     type: 'rect',
                     startX: this.startX,
@@ -348,7 +348,7 @@ class WhiteboardApp {
                 const circleRect = this.canvas.getBoundingClientRect();
                 const circleX = e.clientX - circleRect.left;
                 const circleY = e.clientY - circleRect.top;
-                
+
                 const newCircleObject = {
                     type: 'circle',
                     startX: this.startX,
@@ -378,11 +378,11 @@ class WhiteboardApp {
             case 'text':
                 break;
         }
-        
+
         this.currentObject = null;
         this.redrawCanvas();
     }
-    
+
     drawText(text, x, y) {
         const textObject = {
             type: 'text',
@@ -390,22 +390,22 @@ class WhiteboardApp {
             x: x,
             y: y,
             color: this.currentColor,
-            width: 0,  
-            height: 16  
+            width: 0,
+            height: 16
         };
 
         this.state.addObject(textObject);
         this.redrawCanvas();
     }
-    
+
     undo() {
         const lastAction = this.state.undoLastAction();
-        
+
         if (lastAction) {
-            switch(lastAction.type) {
+            switch (lastAction.type) {
                 case 'add':
                     if (this.state.objects.length > 0) {
-                        this.state.undo(); 
+                        this.state.undo();
                     }
                     break;
                 case 'delete':
@@ -420,7 +420,7 @@ class WhiteboardApp {
                         lastAction.originalPositions.forEach((originalPos, index) => {
                             const obj = this.state.objects[index];
                             if (obj) {
-                                switch(obj.type) {
+                                switch (obj.type) {
                                     case 'text':
                                         obj.x = originalPos.x;
                                         obj.y = originalPos.y;
@@ -450,7 +450,7 @@ class WhiteboardApp {
                     }
                     break;
             }
-            
+
             this.redrawCanvas();
         }
     }
@@ -461,12 +461,12 @@ class WhiteboardApp {
             this.redrawCanvas();
         }
     }
-    
+
     handleDeletion(e) {
         const rect = this.canvas.getBoundingClientRect();
         const x = e.clientX - rect.left;
         const y = e.clientY - rect.top;
-        
+
         if (this.currentTool === 'delete') {
             // Clear everything on the board
             const allObjects = this.state.getObjects();
@@ -475,20 +475,20 @@ class WhiteboardApp {
                     type: 'delete',
                     objects: [...allObjects]
                 });
-                
+
                 // Clear the state completely
                 this.state.objects = [];
                 this.state.undoHistory = [];
                 this.state.redoHistory = [];
             }
-            
+
             this.redrawCanvas();
             return;
         }
-        
+
         // Existing point-based deletion logic
         const erasedObjects = [];
-        
+
         const objects = this.state.getObjects();
         for (let i = objects.length - 1; i >= 0; i--) {
             const obj = objects[i];
@@ -497,19 +497,19 @@ class WhiteboardApp {
                 this.state.removeObject(i);
             }
         }
-        
+
         if (erasedObjects.length > 0) {
             this.state.recordAction({
                 type: 'delete',
                 objects: erasedObjects
             });
         }
-        
+
         this.redrawCanvas();
     }
-    
+
     isObjectNearPoint(x, y, obj, threshold = 10) {
-        switch(obj.type) {
+        switch (obj.type) {
             case 'text':
                 return this.isPointNearText(x, y, obj, threshold);
             case 'rect':
@@ -530,105 +530,105 @@ class WhiteboardApp {
                 return false;
         }
     }
-    
+
     isPointNearText(x, y, textObj, threshold = 10) {
         return (
-            x >= textObj.x - threshold && 
-            x <= textObj.x + textObj.width + threshold && 
-            y >= textObj.y - textObj.height - threshold && 
+            x >= textObj.x - threshold &&
+            x <= textObj.x + textObj.width + threshold &&
+            y >= textObj.y - textObj.height - threshold &&
             y <= textObj.y + threshold
         );
     }
-    
+
     isPointNearRect(x, y, rectObj, threshold = 10) {
         const minX = Math.min(rectObj.startX, rectObj.endX);
         const maxX = Math.max(rectObj.startX, rectObj.endX);
         const minY = Math.min(rectObj.startY, rectObj.endY);
         const maxY = Math.max(rectObj.startY, rectObj.endY);
-        
+
         return (x >= minX - threshold && x <= maxX + threshold &&
-                y >= minY - threshold && y <= maxY + threshold);
+            y >= minY - threshold && y <= maxY + threshold);
     }
-    
+
     isPointNearCircle(x, y, circleObj, threshold = 10) {
         const centerX = circleObj.startX;
         const centerY = circleObj.startY;
         const radius = Math.sqrt(
-            Math.pow(circleObj.endX - centerX, 2) + 
+            Math.pow(circleObj.endX - centerX, 2) +
             Math.pow(circleObj.endY - centerY, 2)
         );
-        
+
         const distanceFromCenter = Math.sqrt(
-            Math.pow(x - centerX, 2) + 
+            Math.pow(x - centerX, 2) +
             Math.pow(y - centerY, 2)
         );
-        
+
         return Math.abs(distanceFromCenter - radius) <= threshold;
     }
-    
+
     isPointNearPencilPath(x, y, pencilObj, threshold = 10) {
-        return pencilObj.points.some(point => 
-            Math.abs(x - point.x) < threshold && 
+        return pencilObj.points.some(point =>
+            Math.abs(x - point.x) < threshold &&
             Math.abs(y - point.y) < threshold
         );
     }
-    
+
     isPointNearLine(x, y, lineObj, threshold = 10) {
         const minX = Math.min(lineObj.startX, lineObj.endX);
         const maxX = Math.max(lineObj.startX, lineObj.endX);
         const minY = Math.min(lineObj.startY, lineObj.endY);
         const maxY = Math.max(lineObj.startY, lineObj.endY);
-        
+
         return (x >= minX - threshold && x <= maxX + threshold &&
-                y >= minY - threshold && y <= maxY + threshold);
+            y >= minY - threshold && y <= maxY + threshold);
     }
-    
+
     isPointNearStar(x, y, starObj, threshold = 10) {
         const centerX = starObj.centerX;
         const centerY = starObj.centerY;
         const radius = starObj.size;
-        
+
         const distanceFromCenter = Math.sqrt(
-            Math.pow(x - centerX, 2) + 
+            Math.pow(x - centerX, 2) +
             Math.pow(y - centerY, 2)
         );
-        
+
         return Math.abs(distanceFromCenter - radius) <= threshold;
     }
-    
+
     isPointNearArrow(x, y, arrowObj, threshold = 10) {
         const minX = Math.min(arrowObj.startX, arrowObj.endX);
         const maxX = Math.max(arrowObj.startX, arrowObj.endX);
         const minY = Math.min(arrowObj.startY, arrowObj.endY);
         const maxY = Math.max(arrowObj.startY, arrowObj.endY);
-        
+
         return (x >= minX - threshold && x <= maxX + threshold &&
-                y >= minY - threshold && y <= maxY + threshold);
+            y >= minY - threshold && y <= maxY + threshold);
     }
-    
+
     isPointNearPolygon(x, y, polygonObj, threshold = 10) {
         const centerX = polygonObj.centerX;
         const centerY = polygonObj.centerY;
         const radius = polygonObj.radius;
-        
+
         const distanceFromCenter = Math.sqrt(
-            Math.pow(x - centerX, 2) + 
+            Math.pow(x - centerX, 2) +
             Math.pow(y - centerY, 2)
         );
-        
+
         return Math.abs(distanceFromCenter - radius) <= threshold;
     }
-    
+
     handleObjectSelection(e) {
         const rect = this.canvas.getBoundingClientRect();
         const x = e.clientX - rect.left;
         const y = e.clientY - rect.top;
-        
+
         this.selectedObjects = [];
-        
+
         this.state.getObjects().forEach(obj => {
             let isSelected = false;
-            switch(obj.type) {
+            switch (obj.type) {
                 case 'text':
                     isSelected = this.isPointNearText(x, y, obj);
                     break;
@@ -654,7 +654,7 @@ class WhiteboardApp {
                     isSelected = this.isPointNearPolygon(x, y, obj);
                     break;
             }
-            
+
             if (isSelected) {
                 this.selectedObjects.push(obj);
             }
@@ -662,10 +662,10 @@ class WhiteboardApp {
 
         if (this.selectedObjects.length > 0) {
             this.isDraggingObject = true;
-            
+
             const firstObj = this.selectedObjects[0];
-            
-            switch(firstObj.type) {
+
+            switch (firstObj.type) {
                 case 'text':
                     this.dragOffsetX = x - firstObj.x;
                     this.dragOffsetY = y - firstObj.y;
@@ -684,16 +684,16 @@ class WhiteboardApp {
                     this.dragOffsetY = y - firstObj.points[0].y;
                     break;
             }
-            
+
             this.redrawCanvas();
         }
     }
-    
+
     dragSelectedObject(e) {
         if (!this.isDraggingObject || this.selectedObjects.length === 0) return;
 
         const originalPositions = this.selectedObjects.map(obj => {
-            switch(obj.type) {
+            switch (obj.type) {
                 case 'text':
                     return { x: obj.x, y: obj.y };
                 case 'rect':
@@ -702,11 +702,11 @@ class WhiteboardApp {
                 case 'star':
                 case 'arrow':
                 case 'polygon':
-                    return { 
-                        startX: obj.startX, 
-                        startY: obj.startY, 
-                        endX: obj.endX, 
-                        endY: obj.endY 
+                    return {
+                        startX: obj.startX,
+                        startY: obj.startY,
+                        endX: obj.endX,
+                        endY: obj.endY
                     };
                 case 'pencil':
                     return { points: [...obj.points] };
@@ -718,7 +718,7 @@ class WhiteboardApp {
         const y = e.clientY - rect.top;
 
         this.selectedObjects.forEach(obj => {
-            switch(obj.type) {
+            switch (obj.type) {
                 case 'text':
                     obj.x = x - this.dragOffsetX;
                     obj.y = y - this.dragOffsetY;
@@ -739,7 +739,7 @@ class WhiteboardApp {
                 case 'pencil':
                     const firstPointDeltaX = x - this.dragOffsetX - obj.points[0].x;
                     const firstPointDeltaY = y - this.dragOffsetY - obj.points[0].y;
-                    
+
                     obj.points = obj.points.map(point => ({
                         x: point.x + firstPointDeltaX,
                         y: point.y + firstPointDeltaY
@@ -764,7 +764,7 @@ class WhiteboardApp {
 
     drawGeometricShape(type, startX, startY, endX, endY) {
         let newObject = null;
-        switch(type) {
+        switch (type) {
             case 'line':
                 GeometricShapes.drawLine(this.ctx, startX, startY, endX, endY, this.currentColor);
                 newObject = {
@@ -778,7 +778,7 @@ class WhiteboardApp {
                 break;
             case 'star':
                 const size = Math.sqrt(
-                    Math.pow(endX - startX, 2) + 
+                    Math.pow(endX - startX, 2) +
                     Math.pow(endY - startY, 2)
                 );
                 GeometricShapes.drawStar(this.ctx, startX, startY, size, this.currentColor);
@@ -794,7 +794,7 @@ class WhiteboardApp {
                 // Calculate arrow head orientation based on line direction
                 const angle = Math.atan2(endY - startY, endX - startX);
                 const headLength = Math.sqrt(
-                    Math.pow(endX - startX, 2) + 
+                    Math.pow(endX - startX, 2) +
                     Math.pow(endY - startY, 2)
                 ) * 0.2; // Arrow head length proportional to arrow length
 
@@ -812,7 +812,7 @@ class WhiteboardApp {
                 break;
             case 'polygon':
                 const radius = Math.sqrt(
-                    Math.pow(endX - startX, 2) + 
+                    Math.pow(endX - startX, 2) +
                     Math.pow(endY - startY, 2)
                 );
                 const sides = 6; // Default hexagon, could be made configurable
@@ -832,15 +832,15 @@ class WhiteboardApp {
 
     redrawCanvas() {
         this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
-        
+
         const objects = this.state.getObjects();
         objects.forEach(obj => {
             this.ctx.strokeStyle = obj.color;
             this.ctx.fillStyle = obj.color;
-            
+
             const isSelected = this.selectedObjects.includes(obj);
-            
-            switch(obj.type) {
+
+            switch (obj.type) {
                 case 'pencil':
                     if (obj.points.length > 1) {
                         this.ctx.beginPath();
@@ -851,7 +851,7 @@ class WhiteboardApp {
                         this.ctx.lineWidth = 2;
                         this.ctx.lineCap = 'round';
                         this.ctx.stroke();
-                        
+
                         if (isSelected) {
                             this.drawSelectionHighlight(obj.points);
                         }
@@ -861,54 +861,54 @@ class WhiteboardApp {
                     if (isSelected) {
                         this.ctx.fillStyle = this.selectionColor;
                         this.ctx.fillRect(
-                            Math.min(obj.startX, obj.endX), 
-                            Math.min(obj.startY, obj.endY), 
-                            Math.abs(obj.endX - obj.startX), 
+                            Math.min(obj.startX, obj.endX),
+                            Math.min(obj.startY, obj.endY),
+                            Math.abs(obj.endX - obj.startX),
                             Math.abs(obj.endY - obj.startY)
                         );
                     }
-                    
+
                     this.ctx.strokeRect(
-                        Math.min(obj.startX, obj.endX), 
-                        Math.min(obj.startY, obj.endY), 
-                        Math.abs(obj.endX - obj.startX), 
+                        Math.min(obj.startX, obj.endX),
+                        Math.min(obj.startY, obj.endY),
+                        Math.abs(obj.endX - obj.startX),
                         Math.abs(obj.endY - obj.startY)
                     );
                     break;
                 case 'circle':
                     const radius = Math.sqrt(
-                        Math.pow(obj.endX - obj.startX, 2) + 
+                        Math.pow(obj.endX - obj.startX, 2) +
                         Math.pow(obj.endY - obj.startY, 2)
                     );
-                    
+
                     if (isSelected) {
                         this.ctx.beginPath();
                         this.ctx.fillStyle = this.selectionColor;
                         this.ctx.arc(obj.startX, obj.startY, radius, 0, 2 * Math.PI);
                         this.ctx.fill();
                     }
-                    
+
                     this.ctx.beginPath();
                     this.ctx.arc(obj.startX, obj.startY, radius, 0, 2 * Math.PI);
                     this.ctx.stroke();
                     break;
                 case 'text':
                     this.ctx.font = '16px Arial';
-                    
+
                     const metrics = this.ctx.measureText(obj.text);
                     obj.width = metrics.width;
-                    
+
                     this.ctx.fillText(obj.text, obj.x, obj.y);
-                    
+
                     if (isSelected) {
                         this.ctx.fillStyle = this.selectionColor;
                         this.ctx.fillRect(
-                            obj.x, 
-                            obj.y - obj.height, 
-                            obj.width, 
+                            obj.x,
+                            obj.y - obj.height,
+                            obj.width,
                             obj.height
                         );
-                        
+
                         this.ctx.fillStyle = obj.color;
                         this.ctx.fillText(obj.text, obj.x, obj.y);
                     }
@@ -972,16 +972,16 @@ class WhiteboardApp {
                         this.ctx.lineTo(obj.endX, obj.endY);
                         this.ctx.stroke();
                     }
-                    
+
                     // Draw arrow with stored angle and head length
                     GeometricShapes.drawArrow(
-                        this.ctx, 
-                        obj.startX, 
-                        obj.startY, 
-                        obj.endX, 
-                        obj.endY, 
-                        obj.color, 
-                        obj.angle, 
+                        this.ctx,
+                        obj.startX,
+                        obj.startY,
+                        obj.endX,
+                        obj.endY,
+                        obj.color,
+                        obj.angle,
                         obj.headLength
                     );
                     break;
@@ -1007,22 +1007,22 @@ class WhiteboardApp {
             }
         });
     }
-    
+
     drawSelectionHighlight(points) {
         if (points.length < 2) return;
-        
+
         this.ctx.beginPath();
         this.ctx.moveTo(points[0].x, points[0].y);
         points.slice(1).forEach(point => {
             this.ctx.lineTo(point.x, point.y);
         });
-        
-        this.ctx.lineWidth = 10;  
+
+        this.ctx.lineWidth = 10;
         this.ctx.lineCap = 'round';
         this.ctx.strokeStyle = this.selectionColor;
         this.ctx.stroke();
     }
-    
+
     setupMultiplayer() {
         const joinRoomBtn = document.getElementById('join-room-btn');
         joinRoomBtn.addEventListener('click', () => this.initializeMultiplayerRoom());
@@ -1031,7 +1031,7 @@ class WhiteboardApp {
     async initializeMultiplayerRoom() {
         const username = document.getElementById('username').value.trim();
         const roomCode = document.getElementById('room-code').value.trim();
-        
+
         if (!username || !roomCode) {
             alert('Please enter both username and room code');
             return;
@@ -1080,16 +1080,16 @@ class WhiteboardApp {
 
             if (this.socket && this.socket.readyState === WebSocket.OPEN) {
                 this.socket.send(JSON.stringify({
-                    usuario: document.getElementById('username')?.value || "Anônimo",
+                    usuario: ddocument.getElementById("auth-email").value,
                     tipo: "desenho",
                     acao: "novo_objeto",
                     conteudo: obj
                 }));
             }
-    
+
             return index;
         };
-    
+
         // ❌ Remove objeto
         const originalRemoveObject = this.state.removeObject.bind(this.state);
         this.state.removeObject = (index) => {
@@ -1103,28 +1103,28 @@ class WhiteboardApp {
 
             if (this.socket && this.socket.readyState === WebSocket.OPEN) {
                 this.socket.send(JSON.stringify({
-                    usuario: document.getElementById('username')?.value || "Anônimo",
+                    usuario: document.getElementById("auth-email").value,
                     tipo: "desenho",
                     acao: "remover_objeto",
                     conteudo: { index: index }
                 }));
             }
-    
+
             return removedObject;
         };
-    
+
         // 🧭 Envia movimentação quando ela acontecer
         const originalRecordAction = this.state.recordAction.bind(this.state);
         this.state.recordAction = (action) => {
             originalRecordAction(action);
-    
+
             if (action.type === "move") {
                 if (this.socket && this.socket.readyState === WebSocket.OPEN) {
                     this.selectedObjects.forEach(obj => {
                         const index = this.state.objects.indexOf(obj);
                         if (index !== -1) {
                             this.socket.send(JSON.stringify({
-                                usuario: document.getElementById('username')?.value || "Anônimo",
+                                usuario: document.getElementById("auth-email").value,
                                 tipo: "desenho",
                                 acao: "mover_objeto",
                                 conteudo: { index, objeto: obj }
@@ -1134,35 +1134,35 @@ class WhiteboardApp {
                 }
             }
         };
-    
+
         // 🕐 Undo
         const originalUndo = this.undo.bind(this);
         this.undo = () => {
             originalUndo();
             if (this.socket && this.socket.readyState === WebSocket.OPEN) {
                 this.socket.send(JSON.stringify({
-                    usuario: document.getElementById('username')?.value || "Anônimo",
+                    usuario: document.getElementById("auth-email").value,
                     tipo: "desenho",
                     acao: "undo",
                     conteudo: this.state.getObjects()
                 }));
             }
         };
-    
+
         // 🔁 Redo
         const originalRedo = this.redo.bind(this);
         this.redo = () => {
             originalRedo();
             if (this.socket && this.socket.readyState === WebSocket.OPEN) {
                 this.socket.send(JSON.stringify({
-                    usuario: document.getElementById('username')?.value || "Anônimo",
+                    usuario: document.getElementById("auth-email").value,
                     tipo: "desenho",
                     acao: "redo",
                     conteudo: this.state.getObjects()
                 }));
             }
         };
-    
+
         // 🧹 Botão Clean
         document.getElementById('delete-tool').addEventListener('click', () => {
             const allObjects = this.state.getObjects();
@@ -1171,16 +1171,16 @@ class WhiteboardApp {
                     type: 'delete',
                     objects: [...allObjects]
                 });
-    
+
                 this.state.objects = [];
                 this.state.undoHistory = [];
                 this.state.redoHistory = [];
-    
+
                 this.redrawCanvas();
-    
+
                 if (this.socket && this.socket.readyState === WebSocket.OPEN) {
                     this.socket.send(JSON.stringify({
-                        usuario: document.getElementById('username')?.value || "Anônimo",
+                        usuario: document.getElementById("auth-email").value,
                         tipo: "desenho",
                         acao: "resetar",
                         conteudo: []
@@ -1189,11 +1189,11 @@ class WhiteboardApp {
             }
         });
     }
-    
+
     updateCanvasFromRoomState(roomState) {
         // Clear current state and rebuild from room state
         this.state.objects = [];
-        
+
         // Rebuild objects from room state
         Object.keys(roomState)
             .filter(key => key.startsWith('object_'))
@@ -1203,7 +1203,7 @@ class WhiteboardApp {
                     this.state.objects.push(obj);
                 }
             });
-        
+
         // Redraw canvas
         this.redrawCanvas();
     }
@@ -1220,29 +1220,29 @@ class WhiteboardApp {
 
     connectWebSocket() {
         this.socket = new WebSocket("wss://quadrobranco-ffap.onrender.com/ws/frontend");
-    
+
         this.socket.onopen = () => {
             console.log("✅ Conectado ao backend");
         };
-    
+
         this.socket.onmessage = (event) => {
             const data = JSON.parse(event.data);
             console.log("📥 Mensagem do backend:", data);
-        
+
             if (data.tipo === "desenho") {
                 switch (data.acao) {
                     case "novo_objeto":
                         this.state.objects.push(data.conteudo);
                         break;
-        
+
                     case "remover_objeto":
                         const idx = data.conteudo.index;
                         if (typeof idx === "number" && idx >= 0 && idx < this.state.objects.length) {
                             this.state.objects.splice(idx, 1);
                         }
                         break;
-                        
-        
+
+
                     case "mover_objeto":
                         // Substitui objeto antigo pelo novo (simplificado)
                         const moved = data.conteudo;
@@ -1250,22 +1250,22 @@ class WhiteboardApp {
                             this.state.objects[moved.index] = moved.objeto;
                         }
                         break;
-        
+
                     case "resetar":
                         this.state.objects = [];
                         break;
-        
+
                     case "undo":
                     case "redo":
                         // Aqui depende se você envia o objeto atualizado
                         this.state.objects = data.conteudo;
                         break;
                 }
-        
+
                 this.redrawCanvas(); // Atualiza o canvas após qualquer mudança
             }
         }
-        
+
     }
 }
 
@@ -1292,23 +1292,23 @@ GeometricShapes = {
         ctx.stroke();
     },
 
-    drawArrow: (ctx, startX, startY, endX, endY, color, angle, headLength=10) => {
+    drawArrow: (ctx, startX, startY, endX, endY, color, angle, headLength = 10) => {
 
         ctx.beginPath();
         ctx.moveTo(startX, startY);
         ctx.lineTo(endX, endY);
         ctx.strokeStyle = color;
         ctx.stroke();
-        
+
         ctx.fillStyle = color;
         ctx.beginPath();
         ctx.moveTo(
-            endX - headLength * Math.cos(angle - Math.PI / 6), 
+            endX - headLength * Math.cos(angle - Math.PI / 6),
             endY - headLength * Math.sin(angle - Math.PI / 6)
         );
         ctx.lineTo(endX, endY);
         ctx.lineTo(
-            endX - headLength * Math.cos(angle + Math.PI / 6), 
+            endX - headLength * Math.cos(angle + Math.PI / 6),
             endY - headLength * Math.sin(angle + Math.PI / 6)
         );
         ctx.fill();
@@ -1326,26 +1326,99 @@ GeometricShapes = {
     }
 }
 
-// // Creates a new WebSocket connection to the specified URL.
-// const socket = new WebSocket('ws://127.0.0.1:8000/ws/frontend');
+const SUPABASE_URL = "https://dayvyzxacovefbjgluaq.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRheXZ5enhhY292ZWZiamdsdWFxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDk0MjE0MDAsImV4cCI6MjA2NDk5NzQwMH0.ofuj_A96OXS1eJ7b_F-f0-9AjJtWNX-sS8cavcdIqNY";
 
-// // Executes when the connection is successfully established.
-// socket.addEventListener('open', event => {
-//     console.log('WebSocket connection established!');
-//   });
+async function login() {
+    const email = document.getElementById("auth-email").value;
+    const password = document.getElementById("auth-password").value;
 
+    const res = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=password`, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            "apikey": SUPABASE_ANON_KEY
+        },
+        body: JSON.stringify({
+            email,
+            password
+        })
+    });
 
-  
-// // Executes when the connection is closed, providing the close code and reason.
-// socket.addEventListener('close', event => {
-//     console.log('WebSocket connection closed:', event.code, event.reason);
-// });
+    const data = await res.json();
 
-  
-// // Executes if an error occurs during the WebSocket communication.
-// socket.addEventListener('error', error => {
-//     console.error('WebSocket error:', error);
-//   });
+    if (res.ok) {
+        const userId = parseJwt(data.access_token).sub;
+
+        await upsertUsuario(userId, email);
+
+        localStorage.setItem("access_token", data.access_token);
+        localStorage.setItem("usuario_id", userId);
+        localStorage.setItem("usuario_email", email);
+
+        bootstrap.Modal.getInstance(document.getElementById("authModal")).hide();
+        document.getElementById("app").style.display = "flex";
+
+        new WhiteboardApp(email); // ou userId
+    } else {
+        document.getElementById("auth-error").textContent = data.error_description || "Erro ao autenticar.";
+    }
+}
+
+async function signup() {
+    const email = document.getElementById("auth-email").value;
+    const password = document.getElementById("auth-password").value;
+
+    const res = await fetch(`${SUPABASE_URL}/auth/v1/signup`, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            "apikey": SUPABASE_ANON_KEY
+        },
+        body: JSON.stringify({
+            email,
+            password
+        })
+    });
+
+    const data = await res.json();
+
+    if (res.ok) {
+        document.getElementById("auth-error").textContent = "Cadastro realizado! Agora clique em Entrar.";
+    } else {
+        document.getElementById("auth-error").textContent = data.msg || "Erro ao cadastrar.";
+    }
+}
+
+async function upsertUsuario(userId, nome) {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/usuarios`, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            "apikey": SUPABASE_ANON_KEY,
+            "Authorization": `Bearer ${localStorage.getItem("access_token")}`,
+            "Prefer": "resolution=merge-duplicates"
+        },
+        body: JSON.stringify({
+            id: userId,
+            nome: nome
+        })
+    });
+
+    if (!res.ok) {
+        console.warn("⚠️ Falha ao gravar usuário:", await res.text());
+    }
+}
+
+function parseJwt(token) {
+    const payload = token.split('.')[1];
+    return JSON.parse(atob(payload));
+}
+
+window.addEventListener("load", () => {
+    const modal = new bootstrap.Modal(document.getElementById("authModal"));
+    modal.show();
+});
 
 window.addEventListener('load', () => {
     new WhiteboardApp();
