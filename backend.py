@@ -1,4 +1,4 @@
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Query
+from fastapi import FastAPI, WebSocket, Query
 from starlette.websockets import WebSocketState
 import threading
 from core_client import start_connection
