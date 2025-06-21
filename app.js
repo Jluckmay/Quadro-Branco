@@ -1219,7 +1219,7 @@ class WhiteboardApp {
     }
 
     connectWebSocket() {
-        this.socket = new WebSocket("ws://quadrobranco-ffap.onrender.com:8000/ws/frontend"); 
+        this.socket = new WebSocket("wss://quadrobranco.onrender.com/ws/frontend");
     
         this.socket.onopen = () => {
             console.log("✅ Conectado ao backend");
