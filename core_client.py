@@ -2,7 +2,7 @@ import websocket  # type: ignore
 import threading
 import json
 import time
-import backend import frontends
+from backend import frontends
 
 WS_URL = "wss://whiteboard-core.onrender.com"  # ou ws://localhost:4000
 RETRY_INTERVAL = 30
