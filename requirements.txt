@@ -7,6 +7,7 @@ attrs==25.3.0
 certifi==2025.4.26
 colorama==0.4.6
 deprecation==2.1.0
+fastapi==0.115.12
 frozenlist==1.6.2
 gotrue==2.12.0
 h11==0.16.0
