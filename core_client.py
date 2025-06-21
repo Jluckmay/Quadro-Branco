@@ -1,4 +1,4 @@
-import websocket  # type: ignore
+import WebSocket
 import threading
 import json
 import time
@@ -39,7 +39,7 @@ def on_error(ws, error):
     print("❌ Erro no WebSocket:", error)
 
 def start_connection():
-    ws = websocket.WebSocketApp(
+    ws = WebSocket.WebSocketApp(
         WS_URL,
         on_open=on_open,
         on_close=on_close,
