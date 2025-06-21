@@ -8,7 +8,7 @@ from jose import jwt  # pip install python-jose
 
 SUPABASE_URL = "https://dayvyzxacovefbjgluaq.supabase.co"
 SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRheXZ5enhhY292ZWZiamdsdWFxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDk0MjE0MDAsImV4cCI6MjA2NDk5NzQwMH0.ofuj_A96OXS1eJ7b_F-f0-9AjJtWNX-sS8cavcdIqNY"
-#SUPABASE_JWT_SECRET = "você-deve-substituir-pelo-valor-do-seu-projeto"  # 🔐 Pegue em Supabase > Project Settings > API
+SUPABASE_JWT_SECRET = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRheXZ5enhhY292ZWZiamdsdWFxIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc0OTQyMTQwMCwiZXhwIjoyMDY0OTk3NDAwfQ.vusfUw2JcrTQ9WJ2b02YWwCw-NNjwmixZAjvMy9Prms"  
 
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 app = FastAPI()
