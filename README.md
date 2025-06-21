@@ -28,15 +28,21 @@ Este projeto foi desenvolvido como parte da disciplina de **Sistemas Distribuíd
 3. Conecte-se à sessão desejada (como no [dontpad.com](https://dontpad.com)).
 4. Comece a desenhar com outras pessoas em tempo real!
 
-## Para Executar os Esboços
+## Para Executar Localmente
+
+1. Primeiro, instale as dependências:
 ```
 pip install -r requirements.txt
 ```
+
+2. 
+
+3. Execute o backend:
 ```
 uvicorn backend:app --reload
 ```
 
-
+4. Abra o arquivo index.html em seu navegador
 
 ## Modo de Uso
 
