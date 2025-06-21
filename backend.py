@@ -8,25 +8,23 @@ from jose import jwt  # pip install python-jose
 
 SUPABASE_URL = "https://dayvyzxacovefbjgluaq.supabase.co"
 SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRheXZ5enhhY292ZWZiamdsdWFxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDk0MjE0MDAsImV4cCI6MjA2NDk5NzQwMH0.ofuj_A96OXS1eJ7b_F-f0-9AjJtWNX-sS8cavcdIqNY"
-SUPABASE_JWT_SECRET = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRheXZ5enhhY292ZWZiamdsdWFxIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc0OTQyMTQwMCwiZXhwIjoyMDY0OTk3NDAwfQ.vusfUw2JcrTQ9WJ2b02YWwCw-NNjwmixZAjvMy9Prms"  
+SUPABASE_JWT_SECRET = "vusfUw2JcrTQ9WJ2b02YWwCw-NNjwmixZAjvMy9Prms"  # apenas o payload com role=service_role
 
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 app = FastAPI()
 
-# "Banco de dados" local em memória
+# Banco local em memória
 quadro_dados = {}
-
-# Conexões ativas com frontends
+locks = {}  # index: usuario_id
 frontends = set()
-
-# Conexão com o Core
 core_ws = None
+
 
 @app.websocket("/ws/frontend")
 async def websocket_frontend(websocket: WebSocket, token: str = Query(None)):
     await websocket.accept()
 
-    # 🔐 Valida o token
+    # Autenticação JWT
     try:
         payload = jwt.decode(token, SUPABASE_JWT_SECRET, algorithms=["HS256"])
         usuario_id = payload.get("sub", "Desconhecido")
@@ -45,14 +43,30 @@ async def websocket_frontend(websocket: WebSocket, token: str = Query(None)):
                 break
 
             data = await websocket.receive_json()
-
-            conteudo = data.get("conteudo")
             tipo = data.get("tipo")
             acao = data.get("acao")
+            conteudo = data.get("conteudo")
+
+            # 🔒 Lógica de LOCK otimista
+            if tipo == "lock":
+                index = conteudo.get("index")
+                if acao == "adquirir":
+                    if locks.get(index) in [None, usuario_id]:
+                        locks[index] = usuario_id
+                        print(f"🔒 Lock adquirido por {usuario_email} no objeto {index}")
+                    else:
+                        print(f"❌ Lock negado para {usuario_email} no objeto {index} (já está com {locks.get(index)})")
+                        continue  # ignora tentativa
+                elif acao == "liberar":
+                    if locks.get(index) == usuario_id:
+                        del locks[index]
+                        print(f"🔓 Lock liberado por {usuario_email} no objeto {index}")
+                continue  # não prossegue para salvar/broadcast de locks
 
             quadro_dados[usuario_id] = conteudo
             print(f"📥 {usuario_email} enviou: {conteudo}")
 
+            # Salvar no Supabase
             try:
                 supabase.table("objetos").insert({
                     "usuario_id": usuario_id,
@@ -65,7 +79,7 @@ async def websocket_frontend(websocket: WebSocket, token: str = Query(None)):
             except Exception as e:
                 print("❌ Erro ao salvar no Supabase:", e)
 
-            # Envia para o core
+            # Enviar para o core
             if core_ws:
                 await core_ws.send_json({
                     "grupo": "G7",
@@ -92,7 +106,14 @@ async def websocket_frontend(websocket: WebSocket, token: str = Query(None)):
         print("❌ Erro:", e)
     finally:
         frontends.remove(websocket)
+        # 🔐 Remove locks pendentes do usuário
+        for index, dono in list(locks.items()):
+            if dono == usuario_id:
+                del locks[index]
+                print(f"🔓 Lock liberado automaticamente do objeto {index} por desconexão")
 
+
+"""
 @app.websocket("/ws/core")
 async def websocket_core(websocket: WebSocket):
     global core_ws
@@ -112,7 +133,8 @@ async def websocket_core(websocket: WebSocket):
         core_ws = None
         print("❌ Core desconectado.")
 
-# Iniciar conexão com core em segundo plano
+"""
+# Inicializa conexão com core em segundo plano
 threading.Thread(
     target=lambda: start_connection(lambda: len(frontends)),
     daemon=True
