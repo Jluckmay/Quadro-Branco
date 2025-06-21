@@ -21,14 +21,8 @@ core_ws = None
 @app.websocket("/ws/frontend")
 async def websocket_frontend(websocket: WebSocket, token: str = Query(None)):
     await websocket.accept()
-<<<<<<< HEAD
 
     # Ao iniciar a conexão, busca o estado do quadro na tabela "quadro_estado"
-=======
-    usuario_email = "anonimo"
-    usuario_id = "visitante"
-    # Se for o início da conexão, consulta o estado do quadro no Supabase e envia para o frontend
->>>>>>> 18d8f94505816415d684d359cff04e92f79369dd
     try:
         response = supabase.table("quadro_estado").select("estado").eq("sessão_id", "sessao123").single().execute()
         estado = response.data["estado"] if response and response.data and "estado" in response.data else []
