@@ -1,5 +1,4 @@
-# core_client1.py
-import websocket
+import websocket  # type: ignore
 import threading
 import json
 import time
