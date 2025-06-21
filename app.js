@@ -1080,7 +1080,7 @@ class WhiteboardApp {
 
             if (this.socket && this.socket.readyState === WebSocket.OPEN) {
                 this.socket.send(JSON.stringify({
-                    usuario: ddocument.getElementById("auth-email").value,
+                    usuario: document.getElementById("auth-email").value,
                     tipo: "desenho",
                     acao: "novo_objeto",
                     conteudo: obj
