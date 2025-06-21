@@ -14,7 +14,7 @@ def send_data(ws):
             "serverId": "main-server-G7",
             "name": "Servidor do G7",
             "roomCount": 1,
-            "userCount": len(frontends) # Atualize aqui se quiser usar valor real
+            "userCount": len(frontends), # Atualize aqui se quiser usar valor real
             "status": "online"
         }
         try:
