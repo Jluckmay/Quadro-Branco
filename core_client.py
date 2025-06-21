@@ -1,4 +1,4 @@
-import WebSocket
+import websocket # Importa a biblioteca websocket-client
 import threading
 import json
 import time

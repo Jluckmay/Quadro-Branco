@@ -1,4 +1,5 @@
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -6,25 +7,26 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="styles.css">
 </head>
+
 <body>
     <!-- Modal de Login/Cadastro -->
     <div class="modal fade" id="authModal" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false">
-      <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content">
-          <div class="modal-header">
-            <h5 class="modal-title">Login ou Cadastro</h5>
-          </div>
-          <div class="modal-body">
-            <input type="email" id="auth-email" class="form-control mb-2" placeholder="Email" />
-            <input type="password" id="auth-password" class="form-control mb-3" placeholder="Senha" />
-            <div class="d-grid gap-2">
-              <button class="btn btn-primary" onclick="login()">Entrar</button>
-              <button class="btn btn-secondary" onclick="signup()">Cadastrar</button>
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Login ou Cadastro</h5>
+                </div>
+                <div class="modal-body">
+                    <input type="email" id="auth-email" class="form-control mb-2" placeholder="Email" />
+                    <input type="password" id="auth-password" class="form-control mb-3" placeholder="Senha" />
+                    <div class="d-grid gap-2">
+                        <button class="btn btn-primary" onclick="login()">Entrar</button>
+                        <button class="btn btn-secondary" onclick="signup()">Cadastrar</button>
+                    </div>
+                    <div id="auth-error" class="text-danger mt-3"></div>
+                </div>
             </div>
-            <div id="auth-error" class="text-danger mt-3"></div>
-          </div>
         </div>
-      </div>
     </div>
 
     <div id="app" style="display: none;">
@@ -33,7 +35,7 @@
                 <input type="color" id="color-picker" value="#000000">
                 <button id="pencil-tool" class="btn btn-secondary tool-btn active" data-tool="pencil">✏️ Pencil</button>
                 <button id="text-tool" class="btn btn-secondary tool-btn" data-tool="text">T Text</button>
-                
+
                 <!-- Dropdown for Geometric Shapes -->
                 <div class="dropdown">
                     <button class="btn btn-secondary dropdown-toggle tool-btn" type="button" id="geometric-shapes-dropdown" data-bs-toggle="dropdown" aria-expanded="false">
@@ -48,13 +50,13 @@
                         <li><button class="dropdown-item" id="polygon-tool" data-tool="polygon">🔷 Polygon</button></li>
                     </ul>
                 </div>
-                
+
                 <button id="move-tool" class="btn btn-secondary tool-btn" data-tool="move">↔️ Move</button>
                 <button id="delete-tool" class="btn btn-secondary tool-btn" data-tool="delete">🧹 Clean</button>
                 <button id="eraser-tool" class="btn btn-secondary tool-btn" data-tool="eraser">🧽 Eraser</button>
                 <button id="undo-btn" class="btn btn-warning">↩️ Undo</button>
                 <button id="redo-btn" class="btn btn-warning">↪️ Redo</button>
-                <button id="multiplayer-btn" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#multiplayer-modal">👥 Multiplayer</button>
+                <!-- <button id="multiplayer-btn" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#multiplayer-modal">👥 Multiplayer</button> -->
                 <button id="dark-mode-toggle" class="btn btn-secondary tool-btn">🌙 Dark Mode</button>
             </div>
         </div>
@@ -105,7 +107,10 @@
                     "Content-Type": "application/json",
                     "apikey": SUPABASE_ANON_KEY
                 },
-                body: JSON.stringify({ email, password })
+                body: JSON.stringify({
+                    email,
+                    password
+                })
             });
 
             const data = await res.json();
@@ -122,7 +127,7 @@
                 bootstrap.Modal.getInstance(document.getElementById("authModal")).hide();
                 document.getElementById("app").style.display = "flex";
 
-                new WhiteboardApp(email);  // ou userId
+                new WhiteboardApp(email); // ou userId
             } else {
                 document.getElementById("auth-error").textContent = data.error_description || "Erro ao autenticar.";
             }
@@ -138,7 +143,10 @@
                     "Content-Type": "application/json",
                     "apikey": SUPABASE_ANON_KEY
                 },
-                body: JSON.stringify({ email, password })
+                body: JSON.stringify({
+                    email,
+                    password
+                })
             });
 
             const data = await res.json();
@@ -159,7 +167,10 @@
                     "Authorization": `Bearer ${localStorage.getItem("access_token")}`,
                     "Prefer": "resolution=merge-duplicates"
                 },
-                body: JSON.stringify({ id: userId, nome: nome })
+                body: JSON.stringify({
+                    id: userId,
+                    nome: nome
+                })
             });
 
             if (!res.ok) {
@@ -178,4 +189,5 @@
         });
     </script>
 </body>
+
 </html>
