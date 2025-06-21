@@ -24,7 +24,7 @@ Este projeto foi desenvolvido como parte da disciplina de **Sistemas Distribuíd
 
 ## 🚀 Como executar
 1. Clone o repositório.
-2. Acesse o frontend em `https://jluckmay.github.io/Quadro-Branco/`
+2. Acesse o frontend em [https://jluckmay.github.io/Quadro-Branco/](https://jluckmay.github.io/Quadro-Branco/)
 3. Conecte-se à sessão desejada.
 4. Comece a desenhar com outras pessoas em tempo real!
 
