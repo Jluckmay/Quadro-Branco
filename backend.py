@@ -54,7 +54,7 @@ async def websocket_frontend(websocket: WebSocket):
             # Envia para o Core, se conectado
             if core_ws:
                 await core_ws.send_json({
-                    "grupo": "G1",
+                    "grupo": "G7",
                     "acao": "atualizacao",
                     "dados": {
                         "usuario": usuario,

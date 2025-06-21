@@ -10,8 +10,8 @@ SEND_INTERVAL = 10
 def send_data(ws):
     while True:
         data = {
-            "serverId": "main-server-G1",
-            "name": "Servidor do G1",
+            "serverId": "main-server-G7",
+            "name": "Servidor do G7",
             "roomCount": 1,
             "userCount": 0,  # Atualize aqui se quiser usar valor real
             "status": "online"
