@@ -2,6 +2,7 @@ import websocket  # type: ignore
 import threading
 import json
 import time
+import backend import frontends
 
 WS_URL = "wss://whiteboard-core.onrender.com"  # ou ws://localhost:4000
 RETRY_INTERVAL = 30
@@ -13,7 +14,7 @@ def send_data(ws):
             "serverId": "main-server-G7",
             "name": "Servidor do G7",
             "roomCount": 1,
-            "userCount": 0,  # Atualize aqui se quiser usar valor real
+            "userCount": len(frontends) # Atualize aqui se quiser usar valor real
             "status": "online"
         }
         try:
