@@ -98,5 +98,7 @@ async def websocket_core(websocket: WebSocket):
         core_ws = None
         print("❌ Core desconectado.")
 
-# Iniciar cliente WebSocket do core em segundo plano
-threading.Thread(target=start_connection, daemon=True).start()
+threading.Thread(
+    target=lambda: start_connection(lambda: len(frontends)),
+    daemon=True
+).start()
