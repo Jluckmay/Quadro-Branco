@@ -33,6 +33,18 @@ async def websocket_frontend(websocket: WebSocket, token: str = Query(None)):
         print("❌ Token JWT inválido:", e)
         await websocket.close()
         return
+    
+     # Se for o início da conexão, consulta o estado do quadro no Supabase e envia para o frontend
+    try:
+        response = supabase.table("objetos").select("*").eq("sessao_id", "sessao123").execute()
+        objetos = response.data if hasattr(response, "data") else response
+        await websocket.send_json({
+            "tipo": "estado_inicial",
+            "objetos": objetos
+        })
+        print(f"📤 Estado inicial enviado para {websocket.client.host}")
+    except Exception as e:
+        print("❌ Erro ao buscar estado inicial do quadro:", e)
 
     frontends.add(websocket)
     print(f"🔌 Frontend conectado: {usuario_email}")
