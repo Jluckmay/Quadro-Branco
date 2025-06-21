@@ -2,6 +2,7 @@ import websocket # Importa a biblioteca websocket-client
 import threading
 import json
 import time
+import supabase
 
 WS_URL = "wss://whiteboard-core.onrender.com"
 RETRY_INTERVAL = 30
@@ -46,3 +47,6 @@ def start_connection(get_user_count):
         on_error=on_error
     )
     ws.run_forever()
+
+def atualizar_estado(sessao_id, lista_ids):
+    supabase.table("quadro_estado").update({"estado": lista_ids, "atualizado_em": "now()"}).eq("sessão_id", sessao_id).execute()

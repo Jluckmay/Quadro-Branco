@@ -1,7 +1,7 @@
 from fastapi import FastAPI, WebSocket, Query
 from starlette.websockets import WebSocketState
 import threading
-from core_client import start_connection
+from core_client import start_connection, atualizar_estado
 from supabase import create_client, Client
 
 SUPABASE_URL = "https://dayvyzxacovefbjgluaq.supabase.co"
@@ -22,10 +22,16 @@ core_ws = None
 async def websocket_frontend(websocket: WebSocket, token: str = Query(None)):
     await websocket.accept()
 
-    # Se for o início da conexão, consulta o estado do quadro no Supabase e envia para o frontend
+    # Ao iniciar a conexão, busca o estado do quadro na tabela "quadro_estado"
     try:
-        response = supabase.table("objetos").select("*").eq("sessao_id", "sessao123").execute()
-        objetos = response.data if hasattr(response, "data") else response
+        response = supabase.table("quadro_estado").select("estado").eq("sessão_id", "sessao123").single().execute()
+        estado = response.data["estado"] if response and response.data and "estado" in response.data else []
+        # estado deve ser uma lista de ids dos objetos presentes no quadro
+        if estado:
+            objetos_response = supabase.table("objetos").select("*").in_("id", estado).execute()
+            objetos = objetos_response.data if hasattr(objetos_response, "data") else objetos_response
+        else:
+            objetos = []
         await websocket.send_json({
             "tipo": "estado_inicial",
             "objetos": objetos
@@ -75,9 +81,34 @@ async def websocket_frontend(websocket: WebSocket, token: str = Query(None)):
                     "acao": acao,
                     "conteudo": conteudo
                 }).execute()
+
                 print("✅ Dados salvos no Supabase.")
             except Exception as e:
                 print("❌ Erro ao salvar no Supabase:", e)
+
+            if tipo == "resetar":
+                atualizar_estado("sessao123", [])
+            else:
+                # Busca o estado com o maior id (último estado salvo)
+                response = supabase.table("quadro_estado") \
+                    .select("estado") \
+                    .eq("sessão_id", "sessao123") \
+                    .order("atualizado_em", desc=True) \
+                    .limit(1) \
+                    .execute()
+                lista_ids = response.data["estado"] if response and response.data and "estado" in response.data else []
+                resultado = supabase.table("objetos") \
+                    .select("id") \
+                    .eq("conteudo", conteudo) \
+                    .neq("acao", "remover_objeto") \
+                    .order("id", desc=True) \
+                    .execute()
+                novo_id = resultado.data[0]["id"] if resultado and resultado.data else None
+                # Adiciona o novo id se não estiver na lista
+                if (novo_id not in lista_ids):
+                    lista_ids.append(novo_id)
+
+                atualizar_estado("sessao123", lista_ids)
 
             # Enviar para o core
             if core_ws:

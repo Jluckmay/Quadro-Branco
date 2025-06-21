@@ -167,6 +167,8 @@ class WhiteboardApp {
                 this.state.undoHistory = [];
                 this.state.redoHistory = [];
 
+                atualizar_estado("sessao123", []);
+
                 // Redraw the canvas (which will now be empty)
                 this.redrawCanvas();
 
