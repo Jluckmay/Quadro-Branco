@@ -1,6 +1,6 @@
 # 🧑‍🤝‍🧑 Quadro Branco Colaborativo Distribuído
 
-Projeto de um quadro branco colaborativo em tempo real, inspirado na simplicidade do [dontpad.com](https://dontpad.com), com foco em comunicação distribuída, concorrência e sincronização entre múltiplos usuários.
+Projeto de um quadro branco colaborativo em tempo real com foco em comunicação distribuída, concorrência e sincronização entre múltiplos usuários.
 
 ## ✨ Funcionalidades
 - Desenho em tempo real em sessões compartilhadas
@@ -18,14 +18,14 @@ Este projeto foi desenvolvido como parte da disciplina de **Sistemas Distribuíd
 
 ## 🧰 Tecnologias utilizadas
 - Frontend: HTML, CSS, JavaScript, Canvas API
-- Backend: [ex: Flask + Flask-SocketIO ou Node.js + ws]
+- Backend: FastAPI, WebSocket, Supabase
 - Deploy do frontend: GitHub Pages
-- Deploy do backend: Railway/Render/Heroku
+- Deploy do backend: Render
 
 ## 🚀 Como executar
 1. Clone o repositório.
-2. Acesse o frontend em `https://jluckmay.github.io/whiteboard/`
-3. Conecte-se à sessão desejada (como no [dontpad.com](https://dontpad.com)).
+2. Acesse o frontend em `https://jluckmay.github.io/Quadro-Branco/`
+3. Conecte-se à sessão desejada.
 4. Comece a desenhar com outras pessoas em tempo real!
 
 ## Para Executar Localmente
