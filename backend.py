@@ -1,8 +1,6 @@
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 import threading
 from core_client import start_connection
-import json
-import asyncio
 from supabase import create_client, Client
 
 SUPABASE_URL = "https://dayvyzxacovefbjgluaq.supabase.co"
