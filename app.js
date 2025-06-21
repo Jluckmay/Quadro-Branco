@@ -1113,7 +1113,7 @@ class WhiteboardApp {
             return removedObject;
         };
 
-        // 🧭 Envia movimentação quando ela acontecer
+        // 🧭 Envia movimentação quando ela acontecer (com lock otimista)
         const originalRecordAction = this.state.recordAction.bind(this.state);
         this.state.recordAction = (action) => {
             originalRecordAction(action);
@@ -1122,13 +1122,19 @@ class WhiteboardApp {
                 if (this.socket && this.socket.readyState === WebSocket.OPEN) {
                     this.selectedObjects.forEach(obj => {
                         const index = this.state.objects.indexOf(obj);
-                        if (index !== -1) {
+                        const localObj = this.state.objects[index];
+
+                        if (index !== -1 && localObj.version === obj.version) {
+                            obj.version = (obj.version || 0) + 1; // incrementa versão
+
                             this.socket.send(JSON.stringify({
                                 usuario: document.getElementById("auth-email").value,
                                 tipo: "desenho",
                                 acao: "mover_objeto",
                                 conteudo: { index, objeto: obj }
                             }));
+                        } else {
+                            alert("⚠️ Conflito de versão detectado. Atualize o canvas.");
                         }
                     });
                 }
