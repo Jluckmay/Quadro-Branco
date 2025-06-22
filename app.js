@@ -1067,142 +1067,131 @@ class WhiteboardApp {
         }
     }
 
-setupLocalDrawingSync() {
-    // 🔄 Adiciona objeto
-    const originalAddObject = this.state.addObject.bind(this.state);
-    this.state.addObject = (obj) => {
-        const index = originalAddObject(obj);
-
-        if (this.room) {
-            this.room.updateRoomState({
-                [`object_${index}`]: obj
-            });
-        }
-
-        if (this.socket && this.socket.readyState === WebSocket.OPEN) {
-            const msg = {
-                usuario: this.usuarioEmail,
-                tipo: "desenho",
-                acao: "novo_objeto",
-                conteudo: obj
-            };
-            console.log("📤 Enviando objeto via WebSocket:", msg);
-            this.socket.send(JSON.stringify(msg));
-        }
-
-        return index;
-    };
-
-    // ❌ Remove objeto
-    const originalRemoveObject = this.state.removeObject.bind(this.state);
-    this.state.removeObject = (index) => {
-        const removedObject = originalRemoveObject(index);
-
-        if (this.room) {
-            this.room.updateRoomState({
-                [`object_${index}`]: null
-            });
-        }
-
-        if (this.socket && this.socket.readyState === WebSocket.OPEN) {
-            const msg = {
-                usuario: this.usuarioEmail,
-                tipo: "desenho",
-                acao: "remover_objeto",
-                conteudo: { index: index }
-            };
-            console.log("🗑️ Enviando remoção via WebSocket:", msg);
-            this.socket.send(JSON.stringify(msg));
-        }
-
-        return removedObject;
-    };
-
-    // 🧭 Movimento
-    const originalRecordAction = this.state.recordAction.bind(this.state);
-    this.state.recordAction = (action) => {
-        originalRecordAction(action);
-
-        if (action.type === "move") {
-            if (this.socket && this.socket.readyState === WebSocket.OPEN) {
-                this.selectedObjects.forEach(obj => {
-                    const index = this.state.objects.indexOf(obj);
-                    if (index !== -1) {
-                        const msg = {
-                            usuario: this.usuarioEmail,
-                            tipo: "desenho",
-                            acao: "mover_objeto",
-                            conteudo: { index, objeto: obj }
-                        };
-                        console.log("↔️ Enviando movimento via WebSocket:", msg);
-                        this.socket.send(JSON.stringify(msg));
-                    }
+    setupLocalDrawingSync() {
+        // 🔄 Adiciona objeto
+        const originalAddObject = this.state.addObject.bind(this.state);
+        this.state.addObject = (obj) => {
+            const index = originalAddObject(obj);
+            
+            if (this.room) {
+                this.room.updateRoomState({
+                    [`object_${index}`]: obj
                 });
             }
-        }
-    };
-
-    // 🕐 Undo
-    const originalUndo = this.undo.bind(this);
-    this.undo = () => {
-        originalUndo();
-        if (this.socket && this.socket.readyState === WebSocket.OPEN) {
-            const msg = {
-                usuario: this.usuarioEmail,
-                tipo: "desenho",
-                acao: "undo",
-                conteudo: this.state.getObjects()
-            };
-            console.log("↩️ Enviando undo via WebSocket:", msg);
-            this.socket.send(JSON.stringify(msg));
-        }
-    };
-
-    // 🔁 Redo
-    const originalRedo = this.redo.bind(this);
-    this.redo = () => {
-        originalRedo();
-        if (this.socket && this.socket.readyState === WebSocket.OPEN) {
-            const msg = {
-                usuario: this.usuarioEmail,
-                tipo: "desenho",
-                acao: "redo",
-                conteudo: this.state.getObjects()
-            };
-            console.log("↪️ Enviando redo via WebSocket:", msg);
-            this.socket.send(JSON.stringify(msg));
-        }
-    };
-
-    // 🧹 Botão Clean
-    document.getElementById('delete-tool').addEventListener('click', () => {
-        const allObjects = this.state.getObjects();
-        if (allObjects.length > 0) {
-            this.state.recordAction({
-                type: 'delete',
-                objects: [...allObjects]
-            });
-
-            this.state.objects = [];
-            this.state.undoHistory = [];
-            this.state.redoHistory = [];
-
-            this.redrawCanvas();
 
             if (this.socket && this.socket.readyState === WebSocket.OPEN) {
                 const msg = {
                     usuario: this.usuarioEmail,
                     tipo: "desenho",
-                    acao: "resetar",
-                    conteudo: []
+                    acao: "novo_objeto",
+                    conteudo: obj
                 };
-                console.log("🧹 Enviando reset via WebSocket:", msg);
+                console.log("📤 Enviando objeto via WebSocket:", msg);
                 this.socket.send(JSON.stringify(msg));
             }
-        }
-    });
-}
 
+            return index;
+        };
+    }
+        // ❌ Remove objeto
+        const originalRemoveObject = this.state.removeObject.bind(this.state);
+        this.state.removeObject = (index) => {
+            const removedObject = originalRemoveObject(index);
+
+            if (this.room) {
+                this.room.updateRoomState({
+                    [`object_${index}`]: null
+                });
+            }
+
+            if (this.socket && this.socket.readyState === WebSocket.OPEN) {
+                this.socket.send(JSON.stringify({
+                    usuario: this.usuarioEmail,
+                    tipo: "desenho",
+                    acao: "remover_objeto",
+                    conteudo: { index: index }
+                }));
+            }
+
+            return removedObject;
+        };
+
+        // 🧭 Envia movimentação quando ela acontecer
+        const originalRecordAction = this.state.recordAction.bind(this.state);
+        this.state.recordAction = (action) => {
+            originalRecordAction(action);
+
+            if (action.type === "move") {
+                if (this.socket && this.socket.readyState === WebSocket.OPEN) {
+                    this.selectedObjects.forEach(obj => {
+                        const index = this.state.objects.indexOf(obj);
+                        if (index !== -1) {
+                            this.socket.send(JSON.stringify({
+                                usuario: this.usuarioEmail,
+                                tipo: "desenho",
+                                acao: "mover_objeto",
+                                conteudo: { index, objeto: obj }
+                            }));
+                        }
+                    });
+                }
+            }
+        };
+
+        // 🕐 Undo
+        const originalUndo = this.undo.bind(this);
+        this.undo = () => {
+            originalUndo();
+            if (this.socket && this.socket.readyState === WebSocket.OPEN) {
+                this.socket.send(JSON.stringify({
+                    usuario: this.usuarioEmail,
+                    tipo: "desenho",
+                    acao: "undo",
+                    conteudo: this.state.getObjects()
+                }));
+            }
+        };
+
+        // 🔁 Redo
+        const originalRedo = this.redo.bind(this);
+        this.redo = () => {
+            originalRedo();
+            if (this.socket && this.socket.readyState === WebSocket.OPEN) {
+                this.socket.send(JSON.stringify({
+                    usuario: this.usuarioEmail,
+                    tipo: "desenho",
+                    acao: "redo",
+                    conteudo: this.state.getObjects()
+                }));
+            }
+        };
+
+        // 🧹 Botão Clean
+        document.getElementById('delete-tool').addEventListener('click', () => {
+            const allObjects = this.state.getObjects();
+            if (allObjects.length > 0) {
+                this.state.recordAction({
+                    type: 'delete',
+                    objects: [...allObjects]
+                });
+
+                this.state.objects = [];
+                this.state.undoHistory = [];
+                this.state.redoHistory = [];
+
+                this.redrawCanvas();
+
+                if (this.socket && this.socket.readyState === WebSocket.OPEN) {
+                    this.socket.send(JSON.stringify({
+                        usuario: this.usuarioEmail,
+                        tipo: "desenho",
+                        acao: "resetar",
+                        conteudo: []
+                    }));
+                }
+            }
+        });
+    }
 
     updateCanvasFromRoomState(roomState) {
         // Clear current state and rebuild from room state
@@ -1232,60 +1221,64 @@ setupLocalDrawingSync() {
         console.warn('Use initializeMultiplayerRoom instead');
     }
 
-    connectWebSocket() {
-        const token = localStorage.getItem("access_token");
-        this.socket = new WebSocket(`wss://quadrobranco-ffap.onrender.com/ws/frontend?token=${token}`);
+this.socket.onmessage = (event) => {
+    const data = JSON.parse(event.data);
+    console.log("📥 Mensagem do backend:", data);
 
-        
-        this.socket.onopen = () => {
-            console.log("✅ Conectado ao backend");
-        };
-
-        this.socket.onmessage = (event) => {
-            const data = JSON.parse(event.data);
-            console.log("📥 Mensagem do backend:", data);
-
-            if (data.tipo === "desenho") {
-                switch (data.acao) {
-                    case "novo_objeto":
-                        this.state.objects.push(data.conteudo);
-                        break;
-
-                    case "remover_objeto":
-                        const idx = data.conteudo.index;
-                        if (typeof idx === "number" && idx >= 0 && idx < this.state.objects.length) {
-                            this.state.objects.splice(idx, 1);
-                        }
-                        break;
-
-
-                    case "mover_objeto":
-                        // Substitui objeto antigo pelo novo (simplificado)
-                        const moved = data.conteudo;
-                        if (moved.index >= 0) {
-                            this.state.objects[moved.index] = moved.objeto;
-                        }
-                        break;
-
-                    case "resetar":
-                        this.state.objects = [];
-                        break;
-
-                    case "undo":
-                    case "redo":
-                        // Aqui depende se você envia o objeto atualizado
-                        this.state.objects = data.conteudo;
-                        break;
-                }
-
-                this.redrawCanvas(); // Atualiza o canvas após qualquer mudança
-            }
-
+    // ⚠️ Corrigir isso: carregar objetos salvos no início
+    if (data.tipo === "estado_inicial") {
+        if (Array.isArray(data.objetos)) {
+            this.state.objects = data.objetos;
+            console.log("🧠 Estado inicial restaurado com", data.objetos.length, "objetos.");
             this.redrawCanvas();
         }
+        return; // evita passar para os outros tratamentos
+    }
 
+    if (data.tipo === "desenho") {
+        switch (data.acao) {
+            case "novo_objeto":
+                this.state.objects.push(data.conteudo);
+                break;
+
+            case "remover_objeto":
+                const idx = data.conteudo.index;
+                if (typeof idx === "number" && idx >= 0 && idx < this.state.objects.length) {
+                    this.state.objects.splice(idx, 1);
+                }
+                break;
+
+            case "mover_objeto":
+                const moved = data.conteudo;
+                if (moved.index >= 0) {
+                    this.state.objects[moved.index] = moved.objeto;
+                }
+                break;
+
+            case "resetar":
+                this.state.objects = [];
+                break;
+
+            case "undo":
+            case "redo":
+                this.state.objects = data.conteudo;
+                break;
+        }
+
+        this.redrawCanvas();
     }
 };
+
+
+        this.socket.onclose = () => {
+            console.warn("🔌 Conexão com backend encerrada");
+        };
+
+        this.socket.onerror = (error) => {
+            console.error("❌ Erro na conexão WebSocket:", error);
+        };
+    }
+    ;
 
 
 GeometricShapes = {

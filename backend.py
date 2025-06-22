@@ -40,12 +40,11 @@ async def websocket_frontend(websocket: WebSocket, token: str = Query(None)):
             .limit(1) \
             .execute()
 
-        # Verifica se estado já existe, senão cria
         if not response.data:
             supabase_client.table("quadro_estado").insert({
                 "sessao_id": "sessao123",
                 "estado": [],
-                "atualizado_em": "now()"
+                "atualizado_em": datetime.datetime.utcnow().isoformat()
             }).execute()
             print("🆕 Estado inicial criado em 'quadro_estado'")
             estado = []
@@ -58,9 +57,12 @@ async def websocket_frontend(websocket: WebSocket, token: str = Query(None)):
                 .select("*") \
                 .in_("id", estado) \
                 .execute()
-            objetos = objetos_response.data if hasattr(objetos_response, "data") else objetos_response
+            objetos = objetos_response.data if objetos_response and hasattr(objetos_response, "data") else []
 
-        await websocket.send_json({"tipo": "estado_inicial", "objetos": objetos})
+        await websocket.send_json({
+            "tipo": "estado_inicial",
+            "objetos": objetos
+        })
         print(f"📤 Estado inicial enviado para {websocket.client.host}")
 
     except Exception as e:
@@ -103,7 +105,7 @@ async def websocket_frontend(websocket: WebSocket, token: str = Query(None)):
                     "sessao_id": "sessao123",
                     "tipo": tipo,
                     "acao": acao,
-                    "conteudo": conteudo
+                    "conteudo": json.dumps(conteudo)  # serializa como string JSON
                 }).execute()
                 print("✅ Dados salvos no Supabase.")
             except Exception as e:
@@ -167,7 +169,6 @@ async def websocket_frontend(websocket: WebSocket, token: str = Query(None)):
                 del locks[index]
                 print(f"🔓 Lock liberado automaticamente do objeto {index} por desconexão")
 
-# Inicia conexão com o core em thread separada
 threading.Thread(
     target=lambda: start_connection(lambda: len(frontends)),
     daemon=True
