@@ -113,7 +113,14 @@ async def websocket_frontend(websocket: WebSocket, token: str = Query(None)):
 
             if tipo == "resetar":
                 try:
-                    # Inserir registro da ação de limpeza no Supabase
+                    # Remove todos os objetos da sessão do Supabase
+                    supabase_client.table("objetos") \
+                        .delete() \
+                        .eq("sessao_id", "sessao123") \
+                        .execute()
+                    print("🗑️ Objetos apagados da tabela 'objetos'")
+
+                    # Registra ação de limpeza
                     insert_result = supabase_client.table("objetos").insert({
                         "usuario_id": usuario_id,
                         "sessao_id": "sessao123",
@@ -123,68 +130,23 @@ async def websocket_frontend(websocket: WebSocket, token: str = Query(None)):
                     }).execute()
                     print("✅ Ação de limpeza registrada.")
                 except Exception as e:
-                    print("❌ Erro ao registrar a limpeza no Supabase:", e)
+                    print("❌ Erro ao processar reset:", e)
 
-                # Atualiza estado com lista vazia
+                # Atualiza quadro_estado como vazio
                 atualizar_estado(supabase_client, "sessao123", [])
 
-            elif tipo == "desenho" and acao in ["novo_objeto", "mover_objeto"]:
-                # Atualiza a lista de IDs com base no retorno da inserção
-                novo_id = insert_result.data[0]["id"] if insert_result and insert_result.data else None
-
-                # Busca estado atual
-                response = supabase_client.table("quadro_estado") \
-                    .select("estado") \
-                    .eq("sessao_id", "sessao123") \
-                    .order("atualizado_em", desc=True) \
-                    .limit(1) \
-                    .execute()
-
-                lista_ids = response.data[0]["estado"] if response and response.data else []
-
-                if novo_id and novo_id not in lista_ids:
-                    lista_ids.append(novo_id)
-
-                atualizar_estado(supabase_client, "sessao123", lista_ids)
-
-
-                resultado = supabase_client.table("objetos") \
-                    .select("id") \
-                    .eq("usuario_id", usuario_id) \
-                    .eq("sessao_id", "sessao123") \
-                    .in_("acao", ["novo_objeto", "desenho"]) \
-                    .order("id", desc=True) \
-                    .execute()
-
-                novos_ids = [obj["id"] for obj in resultado.data] if resultado and resultado.data else []
-
-                for obj_id in novos_ids:
-                    if obj_id not in lista_ids:
-                        lista_ids.append(obj_id)
-
-                atualizar_estado(supabase_client, "sessao123", lista_ids)
-
-            if core_ws:
-                await core_ws.send_json({
-                    "grupo": "G7",
-                    "acao": "atualizacao",
-                    "dados": {
+                # Envia a todos os frontends a ação de reset
+                for ws in frontends:
+                    await ws.send_json({
                         "usuario": usuario_email,
                         "tipo": tipo,
-                        "acao": acao,
-                        "conteudo": conteudo
-                    }
-                })
+                        "acao": "resetar",
+                        "conteudo": []
+                    })
 
-            for ws in frontends:
-                await ws.send_json({
-                    "usuario": usuario_email,
-                    "tipo": tipo,
-                    "acao": acao,
-                    "conteudo": conteudo
-                })
-            continue
-        
+                continue
+
+
     except Exception as e:
         print(f"⚠️ {usuario_email} desconectado.")
         print("❌ Erro:", e)
