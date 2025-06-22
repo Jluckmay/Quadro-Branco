@@ -1067,131 +1067,142 @@ class WhiteboardApp {
         }
     }
 
-    setupLocalDrawingSync() {
-        // 🔄 Adiciona objeto
-        const originalAddObject = this.state.addObject.bind(this.state);
-        this.state.addObject = (obj) => {
-            const index = originalAddObject(obj);
-            
-            if (this.room) {
-                this.room.updateRoomState({
-                    [`object_${index}`]: obj
+setupLocalDrawingSync() {
+    // 🔄 Adiciona objeto
+    const originalAddObject = this.state.addObject.bind(this.state);
+    this.state.addObject = (obj) => {
+        const index = originalAddObject(obj);
+
+        if (this.room) {
+            this.room.updateRoomState({
+                [`object_${index}`]: obj
+            });
+        }
+
+        if (this.socket && this.socket.readyState === WebSocket.OPEN) {
+            const msg = {
+                usuario: this.usuarioEmail,
+                tipo: "desenho",
+                acao: "novo_objeto",
+                conteudo: obj
+            };
+            console.log("📤 Enviando objeto via WebSocket:", msg);
+            this.socket.send(JSON.stringify(msg));
+        }
+
+        return index;
+    };
+
+    // ❌ Remove objeto
+    const originalRemoveObject = this.state.removeObject.bind(this.state);
+    this.state.removeObject = (index) => {
+        const removedObject = originalRemoveObject(index);
+
+        if (this.room) {
+            this.room.updateRoomState({
+                [`object_${index}`]: null
+            });
+        }
+
+        if (this.socket && this.socket.readyState === WebSocket.OPEN) {
+            const msg = {
+                usuario: this.usuarioEmail,
+                tipo: "desenho",
+                acao: "remover_objeto",
+                conteudo: { index: index }
+            };
+            console.log("🗑️ Enviando remoção via WebSocket:", msg);
+            this.socket.send(JSON.stringify(msg));
+        }
+
+        return removedObject;
+    };
+
+    // 🧭 Movimento
+    const originalRecordAction = this.state.recordAction.bind(this.state);
+    this.state.recordAction = (action) => {
+        originalRecordAction(action);
+
+        if (action.type === "move") {
+            if (this.socket && this.socket.readyState === WebSocket.OPEN) {
+                this.selectedObjects.forEach(obj => {
+                    const index = this.state.objects.indexOf(obj);
+                    if (index !== -1) {
+                        const msg = {
+                            usuario: this.usuarioEmail,
+                            tipo: "desenho",
+                            acao: "mover_objeto",
+                            conteudo: { index, objeto: obj }
+                        };
+                        console.log("↔️ Enviando movimento via WebSocket:", msg);
+                        this.socket.send(JSON.stringify(msg));
+                    }
                 });
             }
+        }
+    };
+
+    // 🕐 Undo
+    const originalUndo = this.undo.bind(this);
+    this.undo = () => {
+        originalUndo();
+        if (this.socket && this.socket.readyState === WebSocket.OPEN) {
+            const msg = {
+                usuario: this.usuarioEmail,
+                tipo: "desenho",
+                acao: "undo",
+                conteudo: this.state.getObjects()
+            };
+            console.log("↩️ Enviando undo via WebSocket:", msg);
+            this.socket.send(JSON.stringify(msg));
+        }
+    };
+
+    // 🔁 Redo
+    const originalRedo = this.redo.bind(this);
+    this.redo = () => {
+        originalRedo();
+        if (this.socket && this.socket.readyState === WebSocket.OPEN) {
+            const msg = {
+                usuario: this.usuarioEmail,
+                tipo: "desenho",
+                acao: "redo",
+                conteudo: this.state.getObjects()
+            };
+            console.log("↪️ Enviando redo via WebSocket:", msg);
+            this.socket.send(JSON.stringify(msg));
+        }
+    };
+
+    // 🧹 Botão Clean
+    document.getElementById('delete-tool').addEventListener('click', () => {
+        const allObjects = this.state.getObjects();
+        if (allObjects.length > 0) {
+            this.state.recordAction({
+                type: 'delete',
+                objects: [...allObjects]
+            });
+
+            this.state.objects = [];
+            this.state.undoHistory = [];
+            this.state.redoHistory = [];
+
+            this.redrawCanvas();
 
             if (this.socket && this.socket.readyState === WebSocket.OPEN) {
                 const msg = {
                     usuario: this.usuarioEmail,
                     tipo: "desenho",
-                    acao: "novo_objeto",
-                    conteudo: obj
+                    acao: "resetar",
+                    conteudo: []
                 };
-                console.log("📤 Enviando objeto via WebSocket:", msg);
+                console.log("🧹 Enviando reset via WebSocket:", msg);
                 this.socket.send(JSON.stringify(msg));
             }
+        }
+    });
+}
 
-            return index;
-        };
-    }
-        // ❌ Remove objeto
-        const originalRemoveObject = this.state.removeObject.bind(this.state);
-        this.state.removeObject = (index) => {
-            const removedObject = originalRemoveObject(index);
-
-            if (this.room) {
-                this.room.updateRoomState({
-                    [`object_${index}`]: null
-                });
-            }
-
-            if (this.socket && this.socket.readyState === WebSocket.OPEN) {
-                this.socket.send(JSON.stringify({
-                    usuario: this.usuarioEmail,
-                    tipo: "desenho",
-                    acao: "remover_objeto",
-                    conteudo: { index: index }
-                }));
-            }
-
-            return removedObject;
-        };
-
-        // 🧭 Envia movimentação quando ela acontecer
-        const originalRecordAction = this.state.recordAction.bind(this.state);
-        this.state.recordAction = (action) => {
-            originalRecordAction(action);
-
-            if (action.type === "move") {
-                if (this.socket && this.socket.readyState === WebSocket.OPEN) {
-                    this.selectedObjects.forEach(obj => {
-                        const index = this.state.objects.indexOf(obj);
-                        if (index !== -1) {
-                            this.socket.send(JSON.stringify({
-                                usuario: this.usuarioEmail,
-                                tipo: "desenho",
-                                acao: "mover_objeto",
-                                conteudo: { index, objeto: obj }
-                            }));
-                        }
-                    });
-                }
-            }
-        };
-
-        // 🕐 Undo
-        const originalUndo = this.undo.bind(this);
-        this.undo = () => {
-            originalUndo();
-            if (this.socket && this.socket.readyState === WebSocket.OPEN) {
-                this.socket.send(JSON.stringify({
-                    usuario: this.usuarioEmail,
-                    tipo: "desenho",
-                    acao: "undo",
-                    conteudo: this.state.getObjects()
-                }));
-            }
-        };
-
-        // 🔁 Redo
-        const originalRedo = this.redo.bind(this);
-        this.redo = () => {
-            originalRedo();
-            if (this.socket && this.socket.readyState === WebSocket.OPEN) {
-                this.socket.send(JSON.stringify({
-                    usuario: this.usuarioEmail,
-                    tipo: "desenho",
-                    acao: "redo",
-                    conteudo: this.state.getObjects()
-                }));
-            }
-        };
-
-        // 🧹 Botão Clean
-        document.getElementById('delete-tool').addEventListener('click', () => {
-            const allObjects = this.state.getObjects();
-            if (allObjects.length > 0) {
-                this.state.recordAction({
-                    type: 'delete',
-                    objects: [...allObjects]
-                });
-
-                this.state.objects = [];
-                this.state.undoHistory = [];
-                this.state.redoHistory = [];
-
-                this.redrawCanvas();
-
-                if (this.socket && this.socket.readyState === WebSocket.OPEN) {
-                    this.socket.send(JSON.stringify({
-                        usuario: this.usuarioEmail,
-                        tipo: "desenho",
-                        acao: "resetar",
-                        conteudo: []
-                    }));
-                }
-            }
-        });
-    }
 
     updateCanvasFromRoomState(roomState) {
         // Clear current state and rebuild from room state
