@@ -112,7 +112,22 @@ async def websocket_frontend(websocket: WebSocket, token: str = Query(None)):
                 print("❌ Erro ao salvar no Supabase:", e)
 
             if tipo == "resetar":
+                try:
+                    # Inserir registro da ação de limpeza no Supabase
+                    insert_result = supabase_client.table("objetos").insert({
+                        "usuario_id": usuario_id,
+                        "sessao_id": "sessao123",
+                        "tipo": tipo,
+                        "acao": "resetar",
+                        "conteudo": json.dumps([])
+                    }).execute()
+                    print("✅ Ação de limpeza registrada.")
+                except Exception as e:
+                    print("❌ Erro ao registrar a limpeza no Supabase:", e)
+
+                # Atualiza estado com lista vazia
                 atualizar_estado(supabase_client, "sessao123", [])
+
             elif tipo == "desenho" and acao in ["novo_objeto", "mover_objeto"]:
                 # Atualiza a lista de IDs com base no retorno da inserção
                 novo_id = insert_result.data[0]["id"] if insert_result and insert_result.data else None
