@@ -51,23 +51,20 @@ class WhiteboardState {
 
     undoLastAction() {
         if (this.actionHistory.length === 0) return null;
-
         const lastAction = this.actionHistory.pop();
         return lastAction;
     }
 
-restoreState(listaDoBackend) {
-    this.objects = listaDoBackend.map(obj => {
-        const parsed = typeof obj === 'string' ? JSON.parse(obj) : obj;
-        console.log("🎨 Restaurando objeto:", parsed);
-        return parsed;
-    });
+    restoreState(listaDoBackend) {
+        this.objects = listaDoBackend.map(obj => {
+            const parsed = typeof obj === 'string' ? JSON.parse(obj) : obj;
+            console.log("🎨 Restaurando objeto:", parsed);
+            return parsed;
+        });
+        this.actionHistory = []; 
+    }
 }
 
-
-
-
-}
 
 class WhiteboardApp {
     constructor() {
