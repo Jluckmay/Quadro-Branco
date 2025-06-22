@@ -3,6 +3,7 @@ from starlette.websockets import WebSocketState
 import threading
 from core_client import start_connection, atualizar_estado
 from supabase import create_client, Client
+import datetime
 from jose import jwt, JWTError
 import json
 
