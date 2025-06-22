@@ -1092,7 +1092,7 @@ class WhiteboardApp {
 
             return index;
         };
-    }
+    
         // ❌ Remove objeto
         const originalRemoveObject = this.state.removeObject.bind(this.state);
         this.state.removeObject = (index) => {
