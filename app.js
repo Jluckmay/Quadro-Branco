@@ -113,6 +113,28 @@ class WhiteboardApp {
         }
     }
 
+
+    setupEventListeners() {
+    this.canvas.addEventListener('mousedown', (e) => this.startDrawing(e));
+    this.canvas.addEventListener('mousemove', (e) => {
+        if (this.isDrawing) this.draw(e);
+        if (this.isDraggingObject) this.dragSelectedObject(e);
+    });
+    this.canvas.addEventListener('mouseup', (e) => {
+        this.stopDrawing(e);
+        this.stopDraggingObject(e);
+    });
+
+    this.canvas.addEventListener('mouseleave', (e) => {
+        this.stopDrawing(e);
+        this.stopDraggingObject(e);
+    });
+
+    this.colorPicker.addEventListener('input', (e) => {
+        this.currentColor = e.target.value;
+    });
+}
+
     setupLocalDrawingSync() {
         const originalAddObject = this.state.addObject.bind(this.state);
         this.state.addObject = (obj) => {
