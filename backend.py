@@ -103,7 +103,7 @@ async def websocket_frontend(websocket: WebSocket, token: str = Query(None)):
                 # Busca o estado com o maior id (último estado salvo)
                 response = supabase.table("quadro_estado") \
                     .select("estado") \
-                    .eq("sessão_id", "sessao123") \
+                    .eq("sessao_id", "sessao123") \
                     .order("atualizado_em", desc=True) \
                     .limit(1) \
                     .execute()
