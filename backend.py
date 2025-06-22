@@ -24,12 +24,12 @@ async def websocket_frontend(websocket: WebSocket, token: str = Query(None)):
     await websocket.accept()
     
     try:
-        payload = jwt.decode(token, SUPABASE_JWT_SECRET, algorithms=["HS256"])
+        payload = jwt.get_unverified_claims(token)
         usuario_id = payload.get("sub", "Desconhecido")
         usuario_email = payload.get("email", "sem_email")
-        print(f"🔌 Frontend conectado: {usuario_email}")
-    except Exception as e:
-        print("❌ Token JWT inválido:", e)
+        print(f"🔌 Frontend conectado (sem verificação): {usuario_email}")
+    except JWTError as e:
+        print("❌ Erro ao extrair payload do token:", e)
         await websocket.close()
         return
 
