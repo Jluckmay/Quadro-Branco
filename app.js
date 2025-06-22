@@ -58,7 +58,9 @@ class WhiteboardState {
 }
 
 class WhiteboardApp {
-    constructor() {
+    constructor(usuarioEmail) {
+        this.usuarioEmail = usuarioEmail;
+
         this.canvas = document.getElementById('whiteboard');
         this.ctx = this.canvas.getContext('2d');
         this.colorPicker = document.getElementById('color-picker');
@@ -81,78 +83,100 @@ class WhiteboardApp {
 
         this.selectionColor = 'rgba(0, 123, 255, 0.3)';
 
-        // Multiplayer setup
         this.room = null;
         this.socket = null;
 
         this.initializeCanvas();
         this.setupEventListeners();
         this.setupMultiplayer();
-        this.setupLocalDrawingSync()
+        this.setupLocalDrawingSync();
         this.connectWebSocket();
     }
 
-    initializeCanvas() {
-        this.resizeCanvas();
-        window.addEventListener('resize', () => this.resizeCanvas());
-    }
+    setupLocalDrawingSync() {
+        const originalAddObject = this.state.addObject.bind(this.state);
+        this.state.addObject = (obj) => {
+            const index = originalAddObject(obj);
+            if (this.room) {
+                this.room.updateRoomState({ [`object_${index}`]: obj });
+            }
+            if (this.socket && this.socket.readyState === WebSocket.OPEN) {
+                this.socket.send(JSON.stringify({
+                    usuario: this.usuarioEmail,
+                    tipo: "desenho",
+                    acao: "novo_objeto",
+                    conteudo: obj
+                }));
+            }
+            return index;
+        };
 
-    resizeCanvas() {
-        this.canvas.width = window.innerWidth;
-        this.canvas.height = window.innerHeight - 60;
-        this.redrawCanvas();
-    }
+        const originalRemoveObject = this.state.removeObject.bind(this.state);
+        this.state.removeObject = (index) => {
+            const removedObject = originalRemoveObject(index);
+            if (this.room) {
+                this.room.updateRoomState({ [`object_${index}`]: null });
+            }
+            if (this.socket && this.socket.readyState === WebSocket.OPEN) {
+                this.socket.send(JSON.stringify({
+                    usuario: this.usuarioEmail,
+                    tipo: "desenho",
+                    acao: "remover_objeto",
+                    conteudo: { index }
+                }));
+            }
+            return removedObject;
+        };
 
-    setupEventListeners() {
-        document.querySelectorAll('.dropdown-item').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                this.selectTool(e.target.dataset.tool);
-                // Close dropdown
-                const dropdown = document.getElementById('geometric-shapes-dropdown');
-                const bsDropdown = bootstrap.Dropdown.getInstance(dropdown);
-                if (bsDropdown) {
-                    bsDropdown.hide();
+        const originalRecordAction = this.state.recordAction.bind(this.state);
+        this.state.recordAction = (action) => {
+            originalRecordAction(action);
+            if (action.type === "move") {
+                if (this.socket && this.socket.readyState === WebSocket.OPEN) {
+                    this.selectedObjects.forEach(obj => {
+                        const index = this.state.objects.indexOf(obj);
+                        const localObj = this.state.objects[index];
+                        if (index !== -1 && localObj.version === obj.version) {
+                            obj.version = (obj.version || 0) + 1;
+                            this.socket.send(JSON.stringify({
+                                usuario: this.usuarioEmail,
+                                tipo: "desenho",
+                                acao: "mover_objeto",
+                                conteudo: { index, objeto: obj }
+                            }));
+                        } else {
+                            alert("⚠️ Conflito de versão detectado. Atualize o canvas.");
+                        }
+                    });
                 }
-            });
-        });
-
-        document.querySelectorAll('.tool-btn:not(.dropdown-toggle)').forEach(btn => {
-            btn.addEventListener('click', (e) => this.selectTool(e.target.dataset.tool));
-        });
-
-        this.colorPicker.addEventListener('change', (e) => {
-            this.currentColor = e.target.value;
-        });
-
-        this.canvas.addEventListener('mousedown', (e) => {
-            if (this.currentTool === 'eraser') {
-                this.handleDeletion(e);
-            } else {
-                this.startDrawing(e);
             }
-        });
-        this.canvas.addEventListener('mousemove', (e) => {
-            if (this.currentTool === 'move' && this.isDraggingObject) {
-                this.dragSelectedObject(e);
-            } else if (this.currentTool === 'eraser') {
-                this.draw(e);
-            } else {
-                this.draw(e);
-            }
-        });
-        this.canvas.addEventListener('mouseup', (e) => {
-            if (this.currentTool === 'move' && this.isDraggingObject) {
-                this.stopDraggingObject(e);
-            } else {
-                this.stopDrawing(e);
-            }
-        });
-        this.canvas.addEventListener('mouseout', () => this.stopDrawing());
+        };
 
-        document.getElementById('undo-btn').addEventListener('click', () => this.undo());
-        document.getElementById('redo-btn').addEventListener('click', () => this.redo());
+        const originalUndo = this.undo?.bind(this);
+        this.undo = () => {
+            originalUndo();
+            if (this.socket && this.socket.readyState === WebSocket.OPEN) {
+                this.socket.send(JSON.stringify({
+                    usuario: this.usuarioEmail,
+                    tipo: "desenho",
+                    acao: "undo",
+                    conteudo: this.state.getObjects()
+                }));
+            }
+        };
 
-        document.getElementById('join-room-btn').addEventListener('click', () => this.initializeMultiplayerRoom());
+        const originalRedo = this.redo?.bind(this);
+        this.redo = () => {
+            originalRedo();
+            if (this.socket && this.socket.readyState === WebSocket.OPEN) {
+                this.socket.send(JSON.stringify({
+                    usuario: this.usuarioEmail,
+                    tipo: "desenho",
+                    acao: "redo",
+                    conteudo: this.state.getObjects()
+                }));
+            }
+        };
 
         document.getElementById('delete-tool').addEventListener('click', () => {
             const allObjects = this.state.getObjects();
@@ -161,21 +185,13 @@ class WhiteboardApp {
                     type: 'delete',
                     objects: [...allObjects]
                 });
-
-                // Clear the state completely
                 this.state.objects = [];
                 this.state.undoHistory = [];
                 this.state.redoHistory = [];
-
-                atualizar_estado("sessao123", []);
-
-                // Redraw the canvas (which will now be empty)
                 this.redrawCanvas();
-
-                // Send the "clean" action to the backend
                 if (this.socket && this.socket.readyState === WebSocket.OPEN) {
                     this.socket.send(JSON.stringify({
-                        usuario: document.getElementById("auth-email").value,
+                        usuario: this.usuarioEmail,
                         tipo: "desenho",
                         acao: "resetar",
                         conteudo: []
@@ -183,11 +199,8 @@ class WhiteboardApp {
                 }
             }
         });
-
-        document.getElementById('dark-mode-toggle').addEventListener('click', () => {
-            document.body.classList.toggle('dark-mode');
-        });
     }
+
 
     selectTool(tool) {
         document.querySelectorAll('.tool-btn').forEach(btn => {
@@ -1347,5 +1360,6 @@ GeometricShapes = {
 }
 
 window.addEventListener('load', () => {
-    new WhiteboardApp();
+    const email = localStorage.getItem("usuario_email") || "anonimo@sememail.com";
+    new WhiteboardApp(email);
 });
