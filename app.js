@@ -72,39 +72,155 @@ class WhiteboardState {
 
 
 class WhiteboardApp {
-    constructor() {
-        this.canvas = document.getElementById('whiteboard');
-        this.ctx = this.canvas.getContext('2d');
-        this.colorPicker = document.getElementById('color-picker');
+        constructor() {
+            this.canvas = document.getElementById('whiteboard');
+            this.ctx = this.canvas.getContext('2d');
+            this.colorPicker = document.getElementById('color-picker');
 
-        this.state = new WhiteboardState();
+            this.state = new WhiteboardState();
 
-        this.currentTool = 'pencil';
-        this.isDrawing = false;
+            this.currentTool = 'pencil';
+            this.isDrawing = false;
+            this.selectedObjects = [];
 
-        this.selectedObjects = [];
+            this.lockedObjects = {}; 
 
-        this.currentColor = '#000000';
-        this.currentObject = null;
-        this.startX = 0;
-        this.startY = 0;
+            this.currentColor = '#000000';
+            this.currentObject = null;
+            this.startX = 0;
+            this.startY = 0;
+
+            this.isDraggingObject = false;
+            this.dragOffsetX = 0;
+            this.dragOffsetY = 0;
+
+            this.selectionColor = 'rgba(0, 123, 255, 0.3)';
+            this.usuarioEmail = localStorage.getItem("usuario_email") || "anonimo@sememail.com";
+
+            // Multiplayer setup
+            this.room = null;
+            this.socket = null;
+
+            this.initializeCanvas();
+            this.setupEventListeners();
+            this.setupMultiplayer();
+            this.setupLocalDrawingSync()
+            this.connectWebSocket();
+        }
+
+        handleObjectSelection(e) {
+
+    const rect = this.canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+
+    this.selectedObjects = [];
+
+    this.state.getObjects().forEach((obj, index) => {
+        const lockedBy = this.lockedObjects?.[index];
+        const currentUser = this.usuarioEmail;
+
+        if (lockedBy && lockedBy !== currentUser) {
+            return; // pular objetos travados por outros
+        }
+
+        let isSelected = false;
+        switch (obj.type) {
+            case 'text':
+                isSelected = this.isPointNearText(x, y, obj);
+                break;
+            case 'rect':
+                isSelected = this.isPointNearRect(x, y, obj);
+                break;
+            case 'circle':
+                isSelected = this.isPointNearCircle(x, y, obj);
+                break;
+            case 'pencil':
+                isSelected = this.isPointNearPencilPath(x, y, obj);
+                break;
+            case 'line':
+                isSelected = this.isPointNearLine(x, y, obj);
+                break;
+            case 'star':
+                isSelected = this.isPointNearStar(x, y, obj);
+                break;
+            case 'arrow':
+                isSelected = this.isPointNearArrow(x, y, obj);
+                break;
+            case 'polygon':
+                isSelected = this.isPointNearPolygon(x, y, obj);
+                break;
+        }
+
+        if (isSelected) {
+            this.selectedObjects.push(obj);
+
+            // solicita lock
+            if (this.socket && this.socket.readyState === WebSocket.OPEN) {
+                this.socket.send(JSON.stringify({
+                    tipo: "lock",
+                    acao: "adquirir",
+                    conteudo: { index }
+                }));
+            }
+        }
+    });
+
+    if (this.selectedObjects.length > 0) {
+        this.isDraggingObject = true;
+
+        const firstObj = this.selectedObjects[0];
+
+        switch (firstObj.type) {
+            case 'text':
+                this.dragOffsetX = x - firstObj.x;
+                this.dragOffsetY = y - firstObj.y;
+                break;
+            case 'rect':
+            case 'circle':
+            case 'line':
+            case 'star':
+            case 'arrow':
+            case 'polygon':
+                this.dragOffsetX = x - Math.min(firstObj.startX, firstObj.endX);
+                this.dragOffsetY = y - Math.min(firstObj.startY, firstObj.endY);
+                break;
+            case 'pencil':
+                this.dragOffsetX = x - firstObj.points[0].x;
+                this.dragOffsetY = y - firstObj.points[0].y;
+                break;
+        }
+
+        this.redrawCanvas();
+    }
+}
+
+        stopDraggingObject(e) {
+        if (this.socket && this.socket.readyState === WebSocket.OPEN) {
+            this.selectedObjects.forEach(obj => {
+                const index = this.state.objects.indexOf(obj);
+                if (index !== -1) {
+                    // Envia a movimentação ao backend
+                    this.socket.send(JSON.stringify({
+                        usuario: this.usuarioEmail,
+                        tipo: "desenho",
+                        acao: "mover_objeto",
+                        conteudo: { index, objeto: obj }
+                    }));
+
+                    // Libera o lock do objeto
+                    this.socket.send(JSON.stringify({
+                        tipo: "lock",
+                        acao: "liberar",
+                        conteudo: { index }
+                    }));
+                }
+            });
+        }
 
         this.isDraggingObject = false;
-        this.dragOffsetX = 0;
-        this.dragOffsetY = 0;
-
-        this.selectionColor = 'rgba(0, 123, 255, 0.3)';
-        this.usuarioEmail = localStorage.getItem("usuario_email") || "anonimo@sememail.com";
-
-        // Multiplayer setup
-        this.room = null;
-        this.socket = null;
-
-        this.initializeCanvas();
-        this.setupEventListeners();
-        this.setupMultiplayer();
-        this.setupLocalDrawingSync()
-        this.connectWebSocket();
+        this.selectedObjects = [];
+        this.redrawCanvas();
     }
 
     initializeCanvas() {
@@ -615,75 +731,7 @@ class WhiteboardApp {
         return Math.abs(distanceFromCenter - radius) <= threshold;
     }
 
-    handleObjectSelection(e) {
-        const rect = this.canvas.getBoundingClientRect();
-        const x = e.clientX - rect.left;
-        const y = e.clientY - rect.top;
-
-        this.selectedObjects = [];
-
-        this.state.getObjects().forEach(obj => {
-            let isSelected = false;
-            switch (obj.type) {
-                case 'text':
-                    isSelected = this.isPointNearText(x, y, obj);
-                    break;
-                case 'rect':
-                    isSelected = this.isPointNearRect(x, y, obj);
-                    break;
-                case 'circle':
-                    isSelected = this.isPointNearCircle(x, y, obj);
-                    break;
-                case 'pencil':
-                    isSelected = this.isPointNearPencilPath(x, y, obj);
-                    break;
-                case 'line':
-                    isSelected = this.isPointNearLine(x, y, obj);
-                    break;
-                case 'star':
-                    isSelected = this.isPointNearStar(x, y, obj);
-                    break;
-                case 'arrow':
-                    isSelected = this.isPointNearArrow(x, y, obj);
-                    break;
-                case 'polygon':
-                    isSelected = this.isPointNearPolygon(x, y, obj);
-                    break;
-            }
-
-            if (isSelected) {
-                this.selectedObjects.push(obj);
-            }
-        });
-
-        if (this.selectedObjects.length > 0) {
-            this.isDraggingObject = true;
-
-            const firstObj = this.selectedObjects[0];
-
-            switch (firstObj.type) {
-                case 'text':
-                    this.dragOffsetX = x - firstObj.x;
-                    this.dragOffsetY = y - firstObj.y;
-                    break;
-                case 'rect':
-                case 'circle':
-                case 'line':
-                case 'star':
-                case 'arrow':
-                case 'polygon':
-                    this.dragOffsetX = x - Math.min(firstObj.startX, firstObj.endX);
-                    this.dragOffsetY = y - Math.min(firstObj.startY, firstObj.endY);
-                    break;
-                case 'pencil':
-                    this.dragOffsetX = x - firstObj.points[0].x;
-                    this.dragOffsetY = y - firstObj.points[0].y;
-                    break;
-            }
-
-            this.redrawCanvas();
-        }
-    }
+   
 
     dragSelectedObject(e) {
         if (!this.isDraggingObject || this.selectedObjects.length === 0) return;
@@ -1250,6 +1298,25 @@ this.socket.onmessage = (event) => {
             this.state.restoreState(data.objetos);
             console.log("🎯 Estado inicial restaurado com", data.objetos.length, "objetos.");
             this.redrawCanvas();
+        }
+        return;
+    }
+
+     
+    if (data.tipo === "lock") {
+        const { acao, conteudo } = data;
+        const index = conteudo.index;
+        const usuarioId = conteudo.usuario_id;
+
+        if (acao === "adquirido") {
+            this.lockedObjects[index] = usuarioId;
+            console.log(`🔐 Objeto ${index} bloqueado por ${usuarioId}`);
+        } else if (acao === "negado") {
+            this.lockedObjects[index] = usuarioId;
+            console.warn(`🚫 Não foi possível bloquear o objeto ${index} (já está com ${usuarioId})`);
+        } else if (acao === "liberado") {
+            delete this.lockedObjects[index];
+            console.log(`🔓 Objeto ${index} liberado`);
         }
         return;
     }
