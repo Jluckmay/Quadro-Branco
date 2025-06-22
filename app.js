@@ -831,183 +831,179 @@ class WhiteboardApp {
         return newObject;
     }
 
-    redrawCanvas() {
-        this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+    rredrawCanvas() {
+    this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+    const objects = this.state.getObjects();
 
-        const objects = this.state.getObjects();
-        objects.forEach(obj => {
-            this.ctx.strokeStyle = obj.color;
-            this.ctx.fillStyle = obj.color;
+    objects.forEach(obj => {
+        const isSelected = this.selectedObjects.includes(obj);
+        this.ctx.strokeStyle = obj.color || '#000';
+        this.ctx.fillStyle = obj.color || '#000';
 
-            const isSelected = this.selectedObjects.includes(obj);
-
-            switch (obj.type) {
-                case 'pencil':
-                    if (obj.points.length > 1) {
-                        this.ctx.beginPath();
-                        this.ctx.moveTo(obj.points[0].x, obj.points[0].y);
-                        obj.points.slice(1).forEach(point => {
-                            this.ctx.lineTo(point.x, point.y);
-                        });
-                        this.ctx.lineWidth = 2;
-                        this.ctx.lineCap = 'round';
-                        this.ctx.stroke();
-
-                        if (isSelected) {
-                            this.drawSelectionHighlight(obj.points);
-                        }
-                    }
-                    break;
-                case 'rect':
-                    if (isSelected) {
-                        this.ctx.fillStyle = this.selectionColor;
-                        this.ctx.fillRect(
-                            Math.min(obj.startX, obj.endX),
-                            Math.min(obj.startY, obj.endY),
-                            Math.abs(obj.endX - obj.startX),
-                            Math.abs(obj.endY - obj.startY)
-                        );
-                    }
-
-                    this.ctx.strokeRect(
-                        Math.min(obj.startX, obj.endX),
-                        Math.min(obj.startY, obj.endY),
-                        Math.abs(obj.endX - obj.startX),
-                        Math.abs(obj.endY - obj.startY)
-                    );
-                    break;
-                case 'circle':
-                    const radius = Math.sqrt(
-                        Math.pow(obj.endX - obj.startX, 2) +
-                        Math.pow(obj.endY - obj.startY, 2)
-                    );
-
-                    if (isSelected) {
-                        this.ctx.beginPath();
-                        this.ctx.fillStyle = this.selectionColor;
-                        this.ctx.arc(obj.startX, obj.startY, radius, 0, 2 * Math.PI);
-                        this.ctx.fill();
-                    }
-
+        switch (obj.type) {
+            case 'pencil':
+                if (obj.points?.length > 1) {
                     this.ctx.beginPath();
-                    this.ctx.arc(obj.startX, obj.startY, radius, 0, 2 * Math.PI);
+                    this.ctx.moveTo(obj.points[0].x, obj.points[0].y);
+                    obj.points.slice(1).forEach(point => {
+                        this.ctx.lineTo(point.x, point.y);
+                    });
+                    this.ctx.lineWidth = 2;
+                    this.ctx.lineCap = 'round';
                     this.ctx.stroke();
-                    break;
-                case 'text':
-                    this.ctx.font = '16px Arial';
 
-                    const metrics = this.ctx.measureText(obj.text);
-                    obj.width = metrics.width;
+                    if (isSelected) this.drawSelectionHighlight(obj.points);
+                }
+                break;
 
-                    this.ctx.fillText(obj.text, obj.x, obj.y);
+            case 'rect':
+                const rectX = Math.min(obj.startX, obj.endX);
+                const rectY = Math.min(obj.startY, obj.endY);
+                const rectW = Math.abs(obj.endX - obj.startX);
+                const rectH = Math.abs(obj.endY - obj.startY);
 
-                    if (isSelected) {
-                        this.ctx.fillStyle = this.selectionColor;
-                        this.ctx.fillRect(
-                            obj.x,
-                            obj.y - obj.height,
-                            obj.width,
-                            obj.height
-                        );
+                if (isSelected) {
+                    this.ctx.fillStyle = this.selectionColor;
+                    this.ctx.fillRect(rectX, rectY, rectW, rectH);
+                    this.ctx.fillStyle = obj.color || '#000';
+                }
 
-                        this.ctx.fillStyle = obj.color;
-                        this.ctx.fillText(obj.text, obj.x, obj.y);
-                    }
-                    break;
-                case 'line':
-                    if (isSelected) {
-                        this.ctx.fillStyle = this.selectionColor;
-                        this.ctx.beginPath();
-                        this.ctx.moveTo(obj.startX, obj.startY);
-                        this.ctx.lineTo(obj.endX, obj.endY);
-                        this.ctx.lineTo((obj.startX + obj.endX) / 2, (obj.startY + obj.endY) / 2);
-                        this.ctx.fill();
-                    }
+                this.ctx.strokeRect(rectX, rectY, rectW, rectH);
+                break;
+
+            case 'circle':
+                const radius = Math.sqrt(
+                    Math.pow(obj.endX - obj.startX, 2) +
+                    Math.pow(obj.endY - obj.startY, 2)
+                );
+
+                if (isSelected) {
+                    this.ctx.beginPath();
+                    this.ctx.fillStyle = this.selectionColor;
+                    this.ctx.arc(obj.startX, obj.startY, radius, 0, 2 * Math.PI);
+                    this.ctx.fill();
+                    this.ctx.fillStyle = obj.color || '#000';
+                }
+
+                this.ctx.beginPath();
+                this.ctx.arc(obj.startX, obj.startY, radius, 0, 2 * Math.PI);
+                this.ctx.stroke();
+                break;
+
+            case 'text':
+                this.ctx.font = '16px Arial';
+                const metrics = this.ctx.measureText(obj.text);
+                obj.width = metrics.width;
+                obj.height = 16;
+
+                if (isSelected) {
+                    this.ctx.fillStyle = this.selectionColor;
+                    this.ctx.fillRect(obj.x, obj.y - obj.height, obj.width, obj.height);
+                    this.ctx.fillStyle = obj.color || '#000';
+                }
+
+                this.ctx.fillText(obj.text, obj.x, obj.y);
+                break;
+
+            case 'line':
+                if (isSelected) {
+                    this.ctx.fillStyle = this.selectionColor;
                     this.ctx.beginPath();
                     this.ctx.moveTo(obj.startX, obj.startY);
                     this.ctx.lineTo(obj.endX, obj.endY);
                     this.ctx.lineTo((obj.startX + obj.endX) / 2, (obj.startY + obj.endY) / 2);
-                    this.ctx.closePath();
-                    this.ctx.stroke();
-                    break;
-                case 'star':
-                    const size = obj.size;
-                    if (isSelected) {
-                        this.ctx.beginPath();
-                        this.ctx.fillStyle = this.selectionColor;
-                        const outerRadius = size;
-                        const innerRadius = size / 2;
-                        const points = 5;
-                        for (let i = 0; i < points * 2; i++) {
-                            const angle = (i * Math.PI) / points - Math.PI / 2;
-                            const radius = i % 2 === 0 ? outerRadius : innerRadius;
-                            if (i === 0) {
-                                this.ctx.moveTo(obj.centerX + radius * Math.cos(angle), obj.centerY + radius * Math.sin(angle));
-                            } else {
-                                this.ctx.lineTo(obj.centerX + radius * Math.cos(angle), obj.centerY + radius * Math.sin(angle));
-                            }
-                        }
-                        this.ctx.fill();
-                    }
+                    this.ctx.fill();
+                    this.ctx.fillStyle = obj.color || '#000';
+                }
+
+                this.ctx.beginPath();
+                this.ctx.moveTo(obj.startX, obj.startY);
+                this.ctx.lineTo(obj.endX, obj.endY);
+                this.ctx.stroke();
+                break;
+
+            case 'star':
+                const size = obj.size || 20;
+                const outerRadius = size;
+                const innerRadius = size / 2;
+                const points = 5;
+
+                const drawStar = (fill = false) => {
                     this.ctx.beginPath();
-                    const outerRadius = size;
-                    const innerRadius = size / 2;
-                    const points = 5;
                     for (let i = 0; i < points * 2; i++) {
                         const angle = (i * Math.PI) / points - Math.PI / 2;
                         const radius = i % 2 === 0 ? outerRadius : innerRadius;
-                        if (i === 0) {
-                            this.ctx.moveTo(obj.centerX + radius * Math.cos(angle), obj.centerY + radius * Math.sin(angle));
-                        } else {
-                            this.ctx.lineTo(obj.centerX + radius * Math.cos(angle), obj.centerY + radius * Math.sin(angle));
-                        }
+                        const x = obj.centerX + radius * Math.cos(angle);
+                        const y = obj.centerY + radius * Math.sin(angle);
+                        if (i === 0) this.ctx.moveTo(x, y);
+                        else this.ctx.lineTo(x, y);
                     }
                     this.ctx.closePath();
-                    this.ctx.stroke();
-                    break;
-                case 'arrow':
-                    if (isSelected) {
-                        this.ctx.fillStyle = this.selectionColor;
-                        this.ctx.beginPath();
-                        this.ctx.moveTo(obj.startX, obj.startY);
-                        this.ctx.lineTo(obj.endX, obj.endY);
-                        this.ctx.stroke();
-                    }
+                    if (fill) this.ctx.fill();
+                    else this.ctx.stroke();
+                };
 
-                    // Draw arrow with stored angle and head length
-                    GeometricShapes.drawArrow(
-                        this.ctx,
-                        obj.startX,
-                        obj.startY,
-                        obj.endX,
-                        obj.endY,
-                        obj.color,
-                        obj.angle,
-                        obj.headLength
-                    );
-                    break;
-                case 'polygon':
-                    const polygonRadius = obj.radius;
-                    if (isSelected) {
-                        this.ctx.beginPath();
-                        this.ctx.fillStyle = this.selectionColor;
-                        for (let i = 0; i < obj.sides; i++) {
-                            const angle = (i * 2 * Math.PI) / obj.sides;
-                            this.ctx.lineTo(obj.centerX + polygonRadius * Math.cos(angle), obj.centerY + polygonRadius * Math.sin(angle));
-                        }
-                        this.ctx.fill();
-                    }
+                if (isSelected) {
+                    this.ctx.fillStyle = this.selectionColor;
+                    drawStar(true);
+                    this.ctx.fillStyle = obj.color || '#000';
+                }
+
+                drawStar(false);
+                break;
+
+            case 'arrow':
+                if (isSelected) {
+                    this.ctx.fillStyle = this.selectionColor;
                     this.ctx.beginPath();
-                    for (let i = 0; i < obj.sides; i++) {
-                        const angle = (i * 2 * Math.PI) / obj.sides;
-                        this.ctx.lineTo(obj.centerX + polygonRadius * Math.cos(angle), obj.centerY + polygonRadius * Math.sin(angle));
+                    this.ctx.moveTo(obj.startX, obj.startY);
+                    this.ctx.lineTo(obj.endX, obj.endY);
+                    this.ctx.stroke();
+                    this.ctx.fillStyle = obj.color || '#000';
+                }
+
+                GeometricShapes.drawArrow(
+                    this.ctx,
+                    obj.startX,
+                    obj.startY,
+                    obj.endX,
+                    obj.endY,
+                    obj.color,
+                    obj.angle,
+                    obj.headLength
+                );
+                break;
+
+            case 'polygon':
+                const polygonRadius = obj.radius;
+                const sides = obj.sides || 5;
+
+                const drawPolygon = (fill = false) => {
+                    this.ctx.beginPath();
+                    for (let i = 0; i <= sides; i++) {
+                        const angle = (i * 2 * Math.PI) / sides;
+                        const x = obj.centerX + polygonRadius * Math.cos(angle);
+                        const y = obj.centerY + polygonRadius * Math.sin(angle);
+                        if (i === 0) this.ctx.moveTo(x, y);
+                        else this.ctx.lineTo(x, y);
                     }
                     this.ctx.closePath();
-                    this.ctx.stroke();
-                    break;
-            }
-        });
-    }
+                    if (fill) this.ctx.fill();
+                    else this.ctx.stroke();
+                };
+
+                if (isSelected) {
+                    this.ctx.fillStyle = this.selectionColor;
+                    drawPolygon(true);
+                    this.ctx.fillStyle = obj.color || '#000';
+                }
+
+                drawPolygon(false);
+                break;
+        }
+    });
+}
+
 
     drawSelectionHighlight(points) {
         if (points.length < 2) return;
