@@ -113,36 +113,39 @@ async def websocket_frontend(websocket: WebSocket, token: str = Query(None)):
 
             if tipo == "resetar":
                 try:
-                    # Remove todos os objetos da sessão do Supabase
+                    # 🗑️ Deleta todos os objetos da sessão
                     supabase_client.table("objetos") \
                         .delete() \
                         .eq("sessao_id", "sessao123") \
                         .execute()
                     print("🗑️ Objetos apagados da tabela 'objetos'")
 
-                    # Registra ação de limpeza
-                    insert_result = supabase_client.table("objetos").insert({
-                        "usuario_id": usuario_id,
+                    # 🗑️ Deleta todos os estados anteriores dessa sessão
+                    supabase_client.table("quadro_estado") \
+                        .delete() \
+                        .eq("sessao_id", "sessao123") \
+                        .execute()
+                    print("🗑️ Registros antigos de estado removidos de 'quadro_estado'")
+
+                    # 🆕 Cria um novo estado vazio
+                    supabase_client.table("quadro_estado").insert({
                         "sessao_id": "sessao123",
-                        "tipo": tipo,
-                        "acao": "resetar",
-                        "conteudo": json.dumps([])
+                        "estado": [],
+                        "atualizado_em": datetime.datetime.utcnow().isoformat()
                     }).execute()
-                    print("✅ Ação de limpeza registrada.")
+                    print("✅ Novo estado vazio criado em 'quadro_estado'")
+
+                    # 🔁 Envia comando de reset para todos os frontends conectados
+                    for ws in frontends:
+                        await ws.send_json({
+                            "usuario": usuario_email,
+                            "tipo": "desenho",
+                            "acao": "resetar",
+                            "conteudo": []
+                        })
+
                 except Exception as e:
-                    print("❌ Erro ao processar reset:", e)
-
-                # Atualiza quadro_estado como vazio
-                atualizar_estado(supabase_client, "sessao123", [])
-
-                # Envia a todos os frontends a ação de reset
-                for ws in frontends:
-                    await ws.send_json({
-                        "usuario": usuario_email,
-                        "tipo": tipo,
-                        "acao": "resetar",
-                        "conteudo": []
-                    })
+                    print("❌ Erro ao executar reset:", e)
 
                 continue
 
