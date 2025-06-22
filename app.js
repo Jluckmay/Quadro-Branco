@@ -1221,7 +1221,8 @@ class WhiteboardApp {
 
     connectWebSocket() {
         const email = encodeURIComponent(localStorage.getItem("acess_token");
-        this.socket = new WebSocket(`wss://quadrobranco-ffap.onrender.com/ws/frontend?email=${email}`);
+        this.socket = new WebSocket(`wss://quadrobranco-ffap.onrender.com/ws/frontend?token=${token}`);
+
         
         this.socket.onopen = () => {
             console.log("✅ Conectado ao backend");
