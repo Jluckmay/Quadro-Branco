@@ -1081,11 +1081,13 @@ class WhiteboardApp {
 
             if (this.socket && this.socket.readyState === WebSocket.OPEN) {
                 this.socket.send(JSON.stringify({
-                    usuario: document.getElementById("auth-email").value,
+                    usuario: this.usuarioEmail,
                     tipo: "desenho",
                     acao: "novo_objeto",
                     conteudo: obj
-                }));
+                };
+                console.log("📤 Enviando objeto via WebSocket:", msg);
+                this.socket.send(JSON.stringify(msg));
             }
 
             return index;
