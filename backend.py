@@ -120,6 +120,9 @@ async def websocket_frontend(websocket: WebSocket, token: str = Query(None)):
                     .order("atualizado_em", desc=True) \
                     .limit(1) \
                     .execute()
+                
+            if not acao:
+                acao = "novo_objeto"
 
                 lista_ids = response.data[0]["estado"] if response and response.data else []
 
@@ -127,15 +130,16 @@ async def websocket_frontend(websocket: WebSocket, token: str = Query(None)):
                     .select("id") \
                     .eq("usuario_id", usuario_id) \
                     .eq("sessao_id", "sessao123") \
-                    .neq("acao", "remover_objeto") \
+                    .in_("acao", ["novo_objeto", "desenho"]) \
                     .order("id", desc=True) \
-                    .limit(1) \
+                    .limit(10) \
                     .execute()
 
-                novo_id = resultado.data[0]["id"] if resultado and resultado.data else None
+                novos_ids = [obj["id"] for obj in resultado.data] if resultado and resultado.data else []
 
-                if novo_id and novo_id not in lista_ids:
-                    lista_ids.append(novo_id)
+                for obj_id in novos_ids:
+                    if obj_id not in lista_ids:
+                        lista_ids.append(obj_id)
 
                 atualizar_estado(supabase_client, "sessao123", lista_ids)
 
