@@ -1167,7 +1167,6 @@ class WhiteboardApp {
                     this.socket.send(JSON.stringify({
                         usuario: this.usuarioEmail,
                         tipo: "resetar",
-                        acao: "resetar",
                         conteudo: []
                     }));
                 }
