@@ -127,7 +127,7 @@
                 bootstrap.Modal.getInstance(document.getElementById("authModal")).hide();
                 document.getElementById("app").style.display = "flex";
 
-                new WhiteboardApp(email); // ou userId
+                new WhiteboardApp(); // ou userId
             } else {
                 document.getElementById("auth-error").textContent = data.error_description || "Erro ao autenticar.";
             }
