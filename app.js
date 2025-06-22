@@ -59,7 +59,10 @@ class WhiteboardState {
 restoreState(listaDoBackend) {
     this.objects = listaDoBackend
         .filter(obj => ['novo_objeto', 'desenho', 'mover_objeto'].includes(obj.acao))
-        .map(obj => obj.conteudo);
+        .map(obj => {
+            console.log("🎨 Restaurando objeto:", obj.conteudo);
+            return obj.conteudo;
+        });
 }
 
 
