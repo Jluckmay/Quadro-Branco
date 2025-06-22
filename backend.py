@@ -107,19 +107,27 @@ async def websocket_frontend(websocket: WebSocket, token: str = Query(None)):
                     .order("atualizado_em", desc=True) \
                     .limit(1) \
                     .execute()
-                lista_ids = response.data["estado"] if response and response.data and "estado" in response.data else []
+
+                lista_ids = response.data[0]["estado"] if response and response.data else []
+
+                # Busca o último objeto salvo pelo usuário nessa sessão
                 resultado = supabase.table("objetos") \
                     .select("id") \
-                    .eq("conteudo", conteudo) \
+                    .eq("usuario_id", usuario_id) \
+                    .eq("sessao_id", "sessao123") \
                     .neq("acao", "remover_objeto") \
                     .order("id", desc=True) \
+                    .limit(1) \
                     .execute()
+
                 novo_id = resultado.data[0]["id"] if resultado and resultado.data else None
+
                 # Adiciona o novo id se não estiver na lista
-                if (novo_id not in lista_ids):
+                if novo_id and novo_id not in lista_ids:
                     lista_ids.append(novo_id)
 
                 atualizar_estado("sessao123", lista_ids)
+
 
             # Enviar para o core
             if core_ws:
