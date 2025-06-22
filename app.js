@@ -1220,6 +1220,14 @@ class WhiteboardApp {
     joinMultiplayerRoom() {
         console.warn('Use initializeMultiplayerRoom instead');
     }
+    
+connectWebSocket() {
+    const token = localStorage.getItem("access_token");
+    this.socket = new WebSocket(`wss://quadrobranco-ffap.onrender.com/ws/frontend?token=${token}`);
+
+    this.socket.onopen = () => {
+        console.log("✅ Conectado ao backend");
+    };
 
 this.socket.onmessage = (event) => {
     const data = JSON.parse(event.data);
@@ -1280,7 +1288,6 @@ this.socket.onmessage = (event) => {
     }
     ;
 
-
 GeometricShapes = {
     drawLine: (ctx, startX, startY, endX, endY, color) => {
         ctx.beginPath();
@@ -1305,7 +1312,6 @@ GeometricShapes = {
     },
 
     drawArrow: (ctx, startX, startY, endX, endY, color, angle, headLength = 10) => {
-
         ctx.beginPath();
         ctx.moveTo(startX, startY);
         ctx.lineTo(endX, endY);
@@ -1336,6 +1342,7 @@ GeometricShapes = {
         ctx.strokeStyle = color;
         ctx.stroke();
     }
+};
 }
 
 window.addEventListener('load', () => {
