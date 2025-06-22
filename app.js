@@ -1376,13 +1376,8 @@ const GeometricShapes = {
     }
 };
 
-    setupEventListeners() {}
-    setupMultiplayer() {}
-    connectWebSocket() {}
-
-}
-
 window.addEventListener('load', () => {
     const email = localStorage.getItem("usuario_email") || "anonimo@sememail.com";
     new WhiteboardApp(email);
 });
+
