@@ -39,7 +39,19 @@ async def websocket_frontend(websocket: WebSocket, token: str = Query(None)):
             .order("atualizado_em", desc=True) \
             .limit(1) \
             .execute()
-        estado = response.data[0]["estado"] if response and response.data else []
+
+        # Verifica se estado já existe, senão cria
+        if not response.data:
+            supabase_client.table("quadro_estado").insert({
+                "sessao_id": "sessao123",
+                "estado": [],
+                "atualizado_em": "now()"
+            }).execute()
+            print("🆕 Estado inicial criado em 'quadro_estado'")
+            estado = []
+        else:
+            estado = response.data[0]["estado"]
+
         objetos = []
         if estado:
             objetos_response = supabase_client.table("objetos") \
@@ -47,8 +59,10 @@ async def websocket_frontend(websocket: WebSocket, token: str = Query(None)):
                 .in_("id", estado) \
                 .execute()
             objetos = objetos_response.data if hasattr(objetos_response, "data") else objetos_response
+
         await websocket.send_json({"tipo": "estado_inicial", "objetos": objetos})
         print(f"📤 Estado inicial enviado para {websocket.client.host}")
+
     except Exception as e:
         print("❌ Erro ao buscar estado inicial do quadro:", e)
 
@@ -89,7 +103,7 @@ async def websocket_frontend(websocket: WebSocket, token: str = Query(None)):
                     "sessao_id": "sessao123",
                     "tipo": tipo,
                     "acao": acao,
-                    "conteudo": json.dumps(conteudo)
+                    "conteudo": conteudo
                 }).execute()
                 print("✅ Dados salvos no Supabase.")
             except Exception as e:
@@ -153,6 +167,7 @@ async def websocket_frontend(websocket: WebSocket, token: str = Query(None)):
                 del locks[index]
                 print(f"🔓 Lock liberado automaticamente do objeto {index} por desconexão")
 
+# Inicia conexão com o core em thread separada
 threading.Thread(
     target=lambda: start_connection(lambda: len(frontends)),
     daemon=True
