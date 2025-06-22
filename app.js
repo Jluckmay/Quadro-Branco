@@ -1069,10 +1069,10 @@ class WhiteboardApp {
 
     setupLocalDrawingSync() {
         // 🔄 Adiciona objeto
-        const originalAddObject = this.state.addObject.bind(this.state);
+        cconst originalAddObject = this.state.addObject.bind(this.state);
         this.state.addObject = (obj) => {
             const index = originalAddObject(obj);
-
+            
             if (this.room) {
                 this.room.updateRoomState({
                     [`object_${index}`]: obj
@@ -1080,19 +1080,19 @@ class WhiteboardApp {
             }
 
             if (this.socket && this.socket.readyState === WebSocket.OPEN) {
-                this.socket.send(JSON.stringify({
+                const msg = {
                     usuario: this.usuarioEmail,
                     tipo: "desenho",
                     acao: "novo_objeto",
                     conteudo: obj
-                }));
+                };
                 console.log("📤 Enviando objeto via WebSocket:", msg);
                 this.socket.send(JSON.stringify(msg));
             }
 
             return index;
         };
-
+    }
         // ❌ Remove objeto
         const originalRemoveObject = this.state.removeObject.bind(this.state);
         this.state.removeObject = (index) => {
