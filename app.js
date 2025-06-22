@@ -58,7 +58,7 @@ class WhiteboardState {
 
 restoreState(listaDoBackend) {
     this.objects = listaDoBackend
-        .filter(obj => obj.acao === "novo_objeto" || obj.acao === "desenho")
+        .filter(obj => ['novo_objeto', 'desenho', 'mover_objeto'].includes(obj.acao))
         .map(obj => obj.conteudo);
 }
 
