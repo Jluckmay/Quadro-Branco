@@ -35,7 +35,7 @@ async def websocket_frontend(websocket: WebSocket, token: str = Query(None)):
 
     # Ao iniciar a conexão, busca o estado do quadro na tabela "quadro_estado"
     try:
-        response = supabase.table("quadro_estado").select("estado").eq("sessão_id", "sessao123").single().execute()
+        response = supabase.table("quadro_estado").select("estado").eq("sessao_id", "sessao123").single().execute()
         estado = response.data["estado"] if response and response.data and "estado" in response.data else []
         # estado deve ser uma lista de ids dos objetos presentes no quadro
         if estado:
