@@ -168,33 +168,6 @@ class WhiteboardApp {
 
         document.getElementById('join-room-btn').addEventListener('click', () => this.initializeMultiplayerRoom());
 
-        document.getElementById('delete-tool').addEventListener('click', () => {
-            const allObjects = this.state.getObjects();
-            if (allObjects.length > 0) {
-                this.state.recordAction({
-                    type: 'delete',
-                    objects: [...allObjects]
-                });
-
-                // Clear the state completely
-                this.state.objects = [];
-                this.state.undoHistory = [];
-                this.state.redoHistory = [];
-
-                // Redraw the canvas (which will now be empty)
-                this.redrawCanvas();
-
-                // Send the "clean" action to the backend
-                if (this.socket && this.socket.readyState === WebSocket.OPEN) {
-                    this.socket.send(JSON.stringify({
-                        usuario: this.usuarioEmail,
-                        tipo: "desenho",
-                        acao: "resetar",
-                        conteudo: []
-                    }));
-                }
-            }
-        });
 
         document.getElementById('dark-mode-toggle').addEventListener('click', () => {
             document.body.classList.toggle('dark-mode');
@@ -1193,7 +1166,7 @@ class WhiteboardApp {
                 if (this.socket && this.socket.readyState === WebSocket.OPEN) {
                     this.socket.send(JSON.stringify({
                         usuario: this.usuarioEmail,
-                        tipo: "desenho",
+                        tipo: "resetar",
                         acao: "resetar",
                         conteudo: []
                     }));
