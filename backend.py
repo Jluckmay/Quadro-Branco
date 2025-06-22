@@ -10,7 +10,7 @@ SUPABASE_URL = "https://dayvyzxacovefbjgluaq.supabase.co"
 SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRheXZ5enhhY292ZWZiamdsdWFxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDk0MjE0MDAsImV4cCI6MjA2NDk5NzQwMH0.ofuj_A96OXS1eJ7b_F-f0-9AjJtWNX-sS8cavcdIqNY"
 SUPABASE_JWT_SECRET = "vusfUw2JcrTQ9WJ2b02YWwCw-NNjwmixZAjvMy9Prms"
 
-supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+supabase_client: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 app = FastAPI()
 
 quadro_dados = {}
@@ -33,11 +33,11 @@ async def websocket_frontend(websocket: WebSocket, token: str = Query(None)):
         return
 
     try:
-        response = supabase.table("quadro_estado").select("estado").eq("sessao_id", "sessao123").order("atualizado_em", desc=True).limit(1).execute()
+        response = supabase_client.table("quadro_estado").select("estado").eq("sessao_id", "sessao123").order("atualizado_em", desc=True).limit(1).execute()
         estado = response.data[0]["estado"] if response.data else []
 
         if estado:
-            objetos_response = supabase.table("objetos").select("*").in_("id", estado).execute()
+            objetos_response = supabase_client.table("objetos").select("*").in_("id", estado).execute()
             objetos = objetos_response.data if objetos_response.data else []
         else:
             objetos = []
@@ -82,7 +82,7 @@ async def websocket_frontend(websocket: WebSocket, token: str = Query(None)):
             print(f"📥 {usuario_email} enviou: {conteudo}")
 
             try:
-                supabase.table("objetos").insert({
+                supabase_client.table("objetos").insert({
                     "usuario_id": usuario_id,
                     "sessao_id": "sessao123",
                     "tipo": tipo,
@@ -96,7 +96,7 @@ async def websocket_frontend(websocket: WebSocket, token: str = Query(None)):
             if tipo == "resetar":
                 atualizar_estado("sessao123", [])
             else:
-                response = supabase.table("quadro_estado") \
+                response = supabase_client.table("quadro_estado") \
                     .select("estado") \
                     .eq("sessao_id", "sessao123") \
                     .order("atualizado_em", desc=True) \
@@ -105,7 +105,7 @@ async def websocket_frontend(websocket: WebSocket, token: str = Query(None)):
 
                 lista_ids = response.data[0]["estado"] if response and response.data else []
 
-                resultado = supabase.table("objetos") \
+                resultado = supabase_client.table("objetos") \
                     .select("id") \
                     .eq("usuario_id", usuario_id) \
                     .eq("sessao_id", "sessao123") \
