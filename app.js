@@ -1218,18 +1218,22 @@ this.socket.onmessage = (event) => {
         if (Array.isArray(data.objetos)) {
             this.state.restoreState(data.objetos);
             console.log("🎯 Estado inicial restaurado com", data.objetos.length, "objetos.");
-            this.redrawCanvas(); // 🔁 Desenha os objetos restaurados
+            this.redrawCanvas();
         }
         return;
     }
 
-    if (data.tipo === "desenho" || data.tipo === "resetar") {
-        switch (data.acao) {
-            case "resetar":
-                this.state.objects = [];
-                this.redrawCanvas();
-                break;
+    // Trata resetar de forma independente
+    if (data.tipo === "resetar") {
+        console.log("🧹 Mensagem de reset recebida!");
+        this.state.objects = [];
+        this.redrawCanvas();
+        return;
+    }
 
+    // Trata todas as ações do tipo desenho
+    if (data.tipo === "desenho") {
+        switch (data.acao) {
             case "novo_objeto":
                 this.state.objects.push(data.conteudo);
                 break;
@@ -1257,6 +1261,7 @@ this.socket.onmessage = (event) => {
         this.redrawCanvas();
     }
 };
+
 
 
 
