@@ -92,7 +92,8 @@ class WhiteboardApp {
         this.setupLocalDrawingSync();
         this.connectWebSocket();
     }
-        initializeCanvas() {
+
+    initializeCanvas() {
         this.canvas.width = window.innerWidth;
         this.canvas.height = window.innerHeight;
         this.redrawCanvas();
@@ -147,9 +148,9 @@ class WhiteboardApp {
             return removedObject;
         };
 
-        const originalRecordAction = this.state.recordAction.bind(this.state);
+        const originalRecordAction = this.state.recordAction?.bind(this.state);
         this.state.recordAction = (action) => {
-            originalRecordAction(action);
+            if (originalRecordAction) originalRecordAction(action);
             if (action.type === "move") {
                 if (this.socket && this.socket.readyState === WebSocket.OPEN) {
                     this.selectedObjects.forEach(obj => {
@@ -171,9 +172,8 @@ class WhiteboardApp {
             }
         };
 
-        const originalUndo = this.undo?.bind(this);
         this.undo = () => {
-            originalUndo();
+            if (this.state.undo) this.state.undo();
             if (this.socket && this.socket.readyState === WebSocket.OPEN) {
                 this.socket.send(JSON.stringify({
                     usuario: this.usuarioEmail,
@@ -184,9 +184,8 @@ class WhiteboardApp {
             }
         };
 
-        const originalRedo = this.redo?.bind(this);
         this.redo = () => {
-            originalRedo();
+            if (this.state.redo) this.state.redo();
             if (this.socket && this.socket.readyState === WebSocket.OPEN) {
                 this.socket.send(JSON.stringify({
                     usuario: this.usuarioEmail,
