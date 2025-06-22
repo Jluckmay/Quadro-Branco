@@ -7,7 +7,7 @@ from jose import jwt, JWTError
 import json
 
 SUPABASE_URL = "https://dayvyzxacovefbjgluaq.supabase.co"
-SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRheXZ5enhhY292ZWZiamdsdWFxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDk0MjE0MDAsImV4cCI6MjA2NDk5NzQwMH0.ofuj_A96OXS1eJ7b_F-f0-9AjJtWNX-sS8cavcdIqNY"
+SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
 SUPABASE_JWT_SECRET = "vusfUw2JcrTQ9WJ2b02YWwCw-NNjwmixZAjvMy9Prms"
 
 supabase_client: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
@@ -21,7 +21,7 @@ core_ws = None
 @app.websocket("/ws/frontend")
 async def websocket_frontend(websocket: WebSocket, token: str = Query(None)):
     await websocket.accept()
-    
+
     try:
         payload = jwt.get_unverified_claims(token)
         usuario_id = payload.get("sub", "Desconhecido")
@@ -33,11 +33,19 @@ async def websocket_frontend(websocket: WebSocket, token: str = Query(None)):
         return
 
     try:
-        response = supabase_client.table("quadro_estado").select("estado").eq("sessao_id", "sessao123").limit(1).execute()
-        estado = response.data["estado"] if response and response.data and "estado" in response.data else []
+        response = supabase_client.table("quadro_estado") \
+            .select("estado") \
+            .eq("sessao_id", "sessao123") \
+            .order("atualizado_em", desc=True) \
+            .limit(1) \
+            .execute()
+        estado = response.data[0]["estado"] if response and response.data else []
         objetos = []
         if estado:
-            objetos_response = supabase_client.table("objetos").select("*").in_("id", estado).execute()
+            objetos_response = supabase_client.table("objetos") \
+                .select("*") \
+                .in_("id", estado) \
+                .execute()
             objetos = objetos_response.data if hasattr(objetos_response, "data") else objetos_response
         await websocket.send_json({"tipo": "estado_inicial", "objetos": objetos})
         print(f"📤 Estado inicial enviado para {websocket.client.host}")
@@ -88,12 +96,26 @@ async def websocket_frontend(websocket: WebSocket, token: str = Query(None)):
                 print("❌ Erro ao salvar no Supabase:", e)
 
             if tipo == "resetar":
-                atualizar_estado(supabase_client, "sessao123", lista_ids)
+                atualizar_estado(supabase_client, "sessao123", [])
             else:
-                response = supabase_client.table("quadro_estado").select("estado").eq("sessao_id", "sessao123").order("atualizado_em", desc=True).limit(1).execute()
+                response = supabase_client.table("quadro_estado") \
+                    .select("estado") \
+                    .eq("sessao_id", "sessao123") \
+                    .order("atualizado_em", desc=True) \
+                    .limit(1) \
+                    .execute()
+
                 lista_ids = response.data[0]["estado"] if response and response.data else []
 
-                resultado = supabase_client.table("objetos").select("id").eq("usuario_id", usuario_id).eq("sessao_id", "sessao123").neq("acao", "remover_objeto").order("id", desc=True).limit(1).execute()
+                resultado = supabase_client.table("objetos") \
+                    .select("id") \
+                    .eq("usuario_id", usuario_id) \
+                    .eq("sessao_id", "sessao123") \
+                    .neq("acao", "remover_objeto") \
+                    .order("id", desc=True) \
+                    .limit(1) \
+                    .execute()
+
                 novo_id = resultado.data[0]["id"] if resultado and resultado.data else None
 
                 if novo_id and novo_id not in lista_ids:
