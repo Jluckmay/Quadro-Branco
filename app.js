@@ -56,13 +56,18 @@ class WhiteboardState {
     }
 
     restoreState(listaDoBackend) {
-        this.objects = listaDoBackend.map(obj => {
-            const parsed = typeof obj === 'string' ? JSON.parse(obj) : obj;
-            console.log("🎨 Restaurando objeto:", parsed);
-            return parsed;
-        });
-        this.actionHistory = []; 
+        this.objects = listaDoBackend
+            .filter(obj => obj.acao === 'novo_objeto' && obj.conteudo)
+            .map(obj => {
+                const parsed = typeof obj.conteudo === 'string'
+                    ? JSON.parse(obj.conteudo)
+                    : obj.conteudo;
+                console.log("🎨 Restaurando objeto:", parsed);
+                return parsed;
+            });
+        this.actionHistory = [];
     }
+
 }
 
 
