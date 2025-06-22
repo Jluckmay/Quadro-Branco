@@ -1233,14 +1233,13 @@ this.socket.onmessage = (event) => {
     const data = JSON.parse(event.data);
     console.log("📥 Mensagem do backend:", data);
 
-    // ⚠️ Corrigir isso: carregar objetos salvos no início
     if (data.tipo === "estado_inicial") {
         if (Array.isArray(data.objetos)) {
             this.state.objects = data.objetos;
-            console.log("🧠 Estado inicial restaurado com", data.objetos.length, "objetos.");
-            this.redrawCanvas();
+            console.log("🎯 Estado inicial restaurado com", data.objetos.length, "objetos.");
+            this.redrawCanvas(); // 🔁 Desenha os objetos restaurados
         }
-        return; // evita passar para os outros tratamentos
+        return;
     }
 
     if (data.tipo === "desenho") {
@@ -1273,9 +1272,10 @@ this.socket.onmessage = (event) => {
                 break;
         }
 
-        this.redrawCanvas();
+        this.redrawCanvas(); // Atualiza o canvas após qualquer mudança
     }
 };
+
 
 
         this.socket.onclose = () => {
