@@ -55,6 +55,14 @@ class WhiteboardState {
         const lastAction = this.actionHistory.pop();
         return lastAction;
     }
+
+   restoreState(objetos) {
+    this.objects = [...objetos];
+    this.undoHistory = [];
+    this.redoHistory = [];
+    this.actionHistory = [];
+}
+
 }
 
 class WhiteboardApp {
@@ -1231,7 +1239,7 @@ this.socket.onmessage = (event) => {
 
     if (data.tipo === "estado_inicial") {
         if (Array.isArray(data.objetos)) {
-            this.state.objects = data.objetos;
+            this.state.restoreState(data.objetos);
             console.log("🎯 Estado inicial restaurado com", data.objetos.length, "objetos.");
             this.redrawCanvas(); // 🔁 Desenha os objetos restaurados
         }
