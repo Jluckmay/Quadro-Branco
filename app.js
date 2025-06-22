@@ -1220,7 +1220,7 @@ class WhiteboardApp {
     }
 
     connectWebSocket() {
-        const email = encodeURIComponent(localStorage.getItem("usuario_email") || "anonimo@sememail.com");
+        const email = encodeURIComponent(localStorage.getItem("acess_token");
         this.socket = new WebSocket(`wss://quadrobranco-ffap.onrender.com/ws/frontend?email=${email}`);
         
         this.socket.onopen = () => {
