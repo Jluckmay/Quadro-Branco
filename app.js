@@ -51,9 +51,7 @@ class WhiteboardState {
 
     undoLastAction() {
         if (this.actionHistory.length === 0) return null;
-
-        const lastAction = this.actionHistory.pop();
-        return lastAction;
+        return this.actionHistory.pop();
     }
 }
 
@@ -93,7 +91,8 @@ class WhiteboardApp {
         this.connectWebSocket();
     }
 
-    setupEventListeners() {
+
+     setupEventListeners() {
         this.canvas.addEventListener('mousedown', (e) => this.startDrawing(e));
         this.canvas.addEventListener('mousemove', (e) => {
             if (this.isDrawing) this.draw(e);
@@ -119,11 +118,6 @@ class WhiteboardApp {
         this.redrawCanvas();
     }
 
-    redrawCanvas() {
-        this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
-        this.state.getObjects().forEach(obj => this.drawObject(obj));
-    }
-
     drawObject(obj) {
         if (obj && obj.x !== undefined && obj.y !== undefined) {
             this.ctx.fillStyle = obj.color || this.currentColor;
@@ -132,7 +126,6 @@ class WhiteboardApp {
             this.ctx.fill();
         }
     }
-
 
         const originalRemoveObject = this.state.removeObject.bind(this.state);
         this.state.removeObject = (index) => {
@@ -151,33 +144,77 @@ class WhiteboardApp {
             return removedObject;
         };
 
-        const originalRecordAction = this.state.recordAction?.bind(this.state);
+    
+    setupLocalDrawingSync() {
+        const originalAddObject = this.state.addObject.bind(this.state);
+        this.state.addObject = (obj) => {
+            const index = originalAddObject(obj);
+
+            if (this.room) {
+                this.room.updateRoomState({ [`object_${index}`]: obj });
+            }
+
+            if (this.socket && this.socket.readyState === WebSocket.OPEN) {
+                this.socket.send(JSON.stringify({
+                    usuario: this.usuarioEmail,
+                    tipo: "desenho",
+                    acao: "novo_objeto",
+                    conteudo: obj
+                }));
+            }
+
+            return index;
+        };
+
+        const originalRemoveObject = this.state.removeObject.bind(this.state);
+        this.state.removeObject = (index) => {
+            const removedObject = originalRemoveObject(index);
+
+            if (this.room) {
+                this.room.updateRoomState({ [`object_${index}`]: null });
+            }
+
+            if (this.socket && this.socket.readyState === WebSocket.OPEN) {
+                this.socket.send(JSON.stringify({
+                    usuario: this.usuarioEmail,
+                    tipo: "desenho",
+                    acao: "remover_objeto",
+                    conteudo: { index }
+                }));
+            }
+
+            return removedObject;
+        };
+
+        const originalRecordAction = this.state.recordAction.bind(this.state);
         this.state.recordAction = (action) => {
-            if (originalRecordAction) originalRecordAction(action);
-            if (action.type === "move") {
-                if (this.socket && this.socket.readyState === WebSocket.OPEN) {
-                    this.selectedObjects.forEach(obj => {
-                        const index = this.state.objects.indexOf(obj);
-                        const localObj = this.state.objects[index];
-                        if (index !== -1 && localObj.version === obj.version) {
-                            obj.version = (obj.version || 0) + 1;
-                            this.socket.send(JSON.stringify({
-                                usuario: this.usuarioEmail,
-                                tipo: "desenho",
-                                acao: "mover_objeto",
-                                conteudo: { index, objeto: obj }
-                            }));
-                        } else {
-                            alert("⚠️ Conflito de versão detectado. Atualize o canvas.");
-                        }
-                    });
-                }
+            originalRecordAction(action);
+
+            if (action.type === "move" && this.socket?.readyState === WebSocket.OPEN) {
+                this.selectedObjects.forEach(obj => {
+                    const index = this.state.objects.indexOf(obj);
+                    const localObj = this.state.objects[index];
+
+                    if (index !== -1 && localObj.version === obj.version) {
+                        obj.version = (obj.version || 0) + 1;
+
+                        this.socket.send(JSON.stringify({
+                            usuario: this.usuarioEmail,
+                            tipo: "desenho",
+                            acao: "mover_objeto",
+                            conteudo: { index, objeto: obj }
+                        }));
+                    } else {
+                        alert("⚠️ Conflito de versão detectado. Atualize o canvas.");
+                    }
+                });
             }
         };
 
+        const originalUndo = this.undo.bind(this);
         this.undo = () => {
-            if (this.state.undo) this.state.undo();
-            if (this.socket && this.socket.readyState === WebSocket.OPEN) {
+            originalUndo();
+            if (this.socket?.readyState === WebSocket.OPEN) {
                 this.socket.send(JSON.stringify({
                     usuario: this.usuarioEmail,
                     tipo: "desenho",
@@ -187,9 +224,10 @@ class WhiteboardApp {
             }
         };
 
+        const originalRedo = this.redo.bind(this);
         this.redo = () => {
-            if (this.state.redo) this.state.redo();
-            if (this.socket && this.socket.readyState === WebSocket.OPEN) {
+            originalRedo();
+            if (this.socket?.readyState === WebSocket.OPEN) {
                 this.socket.send(JSON.stringify({
                     usuario: this.usuarioEmail,
                     tipo: "desenho",
@@ -206,11 +244,14 @@ class WhiteboardApp {
                     type: 'delete',
                     objects: [...allObjects]
                 });
+
                 this.state.objects = [];
                 this.state.undoHistory = [];
                 this.state.redoHistory = [];
+
                 this.redrawCanvas();
-                if (this.socket && this.socket.readyState === WebSocket.OPEN) {
+
+                if (this.socket?.readyState === WebSocket.OPEN) {
                     this.socket.send(JSON.stringify({
                         usuario: this.usuarioEmail,
                         tipo: "desenho",
@@ -221,6 +262,7 @@ class WhiteboardApp {
             }
         });
     }
+
 
 
     selectTool(tool) {
@@ -1427,83 +1469,6 @@ window.addEventListener('load', () => {
         return lastAction;
     }
 }
-
-class WhiteboardApp {
-    constructor(usuarioEmail) {
-        this.usuarioEmail = usuarioEmail;
-
-        this.canvas = document.getElementById('whiteboard');
-        this.ctx = this.canvas.getContext('2d');
-        this.colorPicker = document.getElementById('color-picker');
-
-        this.state = new WhiteboardState();
-
-        this.currentTool = 'pencil';
-        this.isDrawing = false;
-
-        this.selectedObjects = [];
-
-        this.currentColor = '#000000';
-        this.currentObject = null;
-        this.startX = 0;
-        this.startY = 0;
-
-        this.isDraggingObject = false;
-        this.dragOffsetX = 0;
-        this.dragOffsetY = 0;
-
-        this.selectionColor = 'rgba(0, 123, 255, 0.3)';
-
-        this.room = null;
-        this.socket = null;
-
-        this.initializeCanvas();
-        this.setupEventListeners();
-        this.setupMultiplayer();
-        this.setupLocalDrawingSync();
-        this.connectWebSocket();
-    }
-
-    setupEventListeners() {
-        this.canvas.addEventListener('mousedown', (e) => this.startDrawing(e));
-        this.canvas.addEventListener('mousemove', (e) => {
-            if (this.isDrawing) this.draw(e);
-            if (this.isDraggingObject) this.dragSelectedObject(e);
-        });
-        this.canvas.addEventListener('mouseup', (e) => {
-            this.stopDrawing(e);
-            this.stopDraggingObject(e);
-        });
-        this.canvas.addEventListener('mouseleave', (e) => {
-            this.stopDrawing(e);
-            this.stopDraggingObject(e);
-        });
-
-        this.colorPicker.addEventListener('input', (e) => {
-            this.currentColor = e.target.value;
-        });
-    }
-
-    initializeCanvas() {
-        this.canvas.width = window.innerWidth;
-        this.canvas.height = window.innerHeight;
-        this.redrawCanvas();
-    }
-
-    redrawCanvas() {
-        this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
-        this.state.getObjects().forEach(obj => this.drawObject(obj));
-    }
-
-    drawObject(obj) {
-        if (obj && obj.x !== undefined && obj.y !== undefined) {
-            this.ctx.fillStyle = obj.color || this.currentColor;
-            this.ctx.beginPath();
-            this.ctx.arc(obj.x, obj.y, 3, 0, 2 * Math.PI);
-            this.ctx.fill();
-        }
-    }
-
 
 
     setupLocalDrawingSync() {
