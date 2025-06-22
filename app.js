@@ -60,10 +60,12 @@ restoreState(listaDoBackend) {
     this.objects = listaDoBackend
         .filter(obj => ['novo_objeto', 'desenho', 'mover_objeto'].includes(obj.acao))
         .map(obj => {
-            console.log("🎨 Restaurando objeto:", obj.conteudo);
-            return obj.conteudo;
+            const parsed = typeof obj.conteudo === 'string' ? JSON.parse(obj.conteudo) : obj.conteudo;
+            console.log("🎨 Restaurando objeto:", parsed);
+            return parsed;
         });
 }
+
 
 
 }
