@@ -230,73 +230,81 @@ class WhiteboardApp {
         }
     }
 
-    draw(e) {
-        if (!this.isDrawing) return;
+        draw(e) {
+            if (!this.isDrawing) return;
 
-        const rect = this.canvas.getBoundingClientRect();
-        const x = e.clientX - rect.left;
-        const y = e.clientY - rect.top;
+            const rect = this.canvas.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
 
-        this.ctx.strokeStyle = this.currentColor;
-        this.ctx.fillStyle = this.currentColor;
+            this.ctx.strokeStyle = this.currentColor;
+            this.ctx.fillStyle = this.currentColor;
 
-        switch (this.currentTool) {
-            case 'eraser':
-                this.objects = this.state.getObjects().filter(obj => {
-                    switch (obj.type) {
-                        case 'text':
-                            return !this.isPointNearText(x, y, obj, 20);
-                        case 'rect':
-                            return !this.isPointNearRect(x, y, obj, 20);
-                        case 'circle':
-                            return !this.isPointNearCircle(x, y, obj, 20);
-                        case 'pencil':
-                            return !this.isPointNearPencilPath(x, y, obj, 20);
-                        default:
-                            return true;
+            switch (this.currentTool) {
+                case 'eraser':
+                    const objects = this.state.getObjects();
+                    let apagou = false;
+
+                    for (let i = objects.length - 1; i >= 0; i--) {
+                        if (this.isObjectNearPoint(x, y, objects[i], 20)) {
+                            this.state.removeObject(i); // isso já envia para o backend
+                            apagou = true;
+                        }
                     }
-                });
-                this.redrawCanvas();
-                break;
-            case 'pencil':
-                this.ctx.lineTo(x, y);
-                this.ctx.lineWidth = 2;
-                this.ctx.lineCap = 'round';
-                this.ctx.stroke();
-                this.currentObject.points.push({ x, y });
-                break;
-            case 'rect':
-                this.redrawCanvas();
-                this.ctx.beginPath();
-                this.ctx.strokeStyle = this.currentColor;
-                this.ctx.strokeRect(
-                    Math.min(this.startX, x),
-                    Math.min(this.startY, y),
-                    Math.abs(x - this.startX),
-                    Math.abs(y - this.startY)
-                );
-                break;
-            case 'circle':
-                this.redrawCanvas();
-                const radius = Math.sqrt(
-                    Math.pow(x - this.startX, 2) +
-                    Math.pow(y - this.startY, 2)
-                );
-                this.ctx.beginPath();
-                this.ctx.strokeStyle = this.currentColor;
-                this.ctx.arc(this.startX, this.startY, radius, 0, 2 * Math.PI);
-                this.ctx.stroke();
-                break;
-            case 'line':
-            case 'star':
-            case 'arrow':
-            case 'polygon':
-                this.redrawCanvas();
-                const newObject = this.drawGeometricShape(this.currentTool, this.startX, this.startY, x, y);
-                this.currentObject = newObject;
-                break;
+
+                    if (apagou) {
+                        this.state.recordAction({
+                            type: 'delete',
+                            objects: [] // você pode melhorar isso registrando os apagados se quiser
+                        });
+                    }
+
+                    this.redrawCanvas();
+                    break;
+
+                case 'pencil':
+                    this.ctx.lineTo(x, y);
+                    this.ctx.lineWidth = 2;
+                    this.ctx.lineCap = 'round';
+                    this.ctx.stroke();
+                    this.currentObject.points.push({ x, y });
+                    break;
+
+                case 'rect':
+                    this.redrawCanvas();
+                    this.ctx.beginPath();
+                    this.ctx.strokeStyle = this.currentColor;
+                    this.ctx.strokeRect(
+                        Math.min(this.startX, x),
+                        Math.min(this.startY, y),
+                        Math.abs(x - this.startX),
+                        Math.abs(y - this.startY)
+                    );
+                    break;
+
+                case 'circle':
+                    this.redrawCanvas();
+                    const radius = Math.sqrt(
+                        Math.pow(x - this.startX, 2) +
+                        Math.pow(y - this.startY, 2)
+                    );
+                    this.ctx.beginPath();
+                    this.ctx.strokeStyle = this.currentColor;
+                    this.ctx.arc(this.startX, this.startY, radius, 0, 2 * Math.PI);
+                    this.ctx.stroke();
+                    break;
+
+                case 'line':
+                case 'star':
+                case 'arrow':
+                case 'polygon':
+                    this.redrawCanvas();
+                    const newObject = this.drawGeometricShape(this.currentTool, this.startX, this.startY, x, y);
+                    this.currentObject = newObject;
+                    break;
+            }
         }
-    }
+
 
     stopDrawing(e) {
         if (!this.isDrawing) return;
@@ -745,10 +753,25 @@ class WhiteboardApp {
     }
 
     stopDraggingObject(e) {
+        if (this.socket && this.socket.readyState === WebSocket.OPEN) {
+            this.selectedObjects.forEach(obj => {
+                const index = this.state.objects.indexOf(obj);
+                if (index !== -1) {
+                    this.socket.send(JSON.stringify({
+                        usuario: this.usuarioEmail,
+                        tipo: "desenho",
+                        acao: "mover_objeto",
+                        conteudo: { index, objeto: obj }
+                    }));
+                }
+            });
+        }
+
         this.isDraggingObject = false;
         this.selectedObjects = [];
         this.redrawCanvas();
     }
+
 
     drawGeometricShape(type, startX, startY, endX, endY) {
         let newObject = null;
@@ -1165,18 +1188,21 @@ class WhiteboardApp {
             this.state.objects = [];
             this.state.undoHistory = [];
             this.state.redoHistory = [];
+            this.state.actionHistory = []; // também zera histórico de ações
             this.redrawCanvas();
 
             // Sempre envia o reset para o backend
             if (this.socket && this.socket.readyState === WebSocket.OPEN) {
+                console.log("🧹 Enviando reset para o backend");
                 this.socket.send(JSON.stringify({
                     usuario: this.usuarioEmail,
                     tipo: "resetar",
                     conteudo: []
                 }));
+            } else {
+                console.warn("❌ WebSocket indisponível para enviar reset");
             }
         });
-
     }
 
     updateCanvasFromRoomState(roomState) {
