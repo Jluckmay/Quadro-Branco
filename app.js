@@ -1152,27 +1152,31 @@ class WhiteboardApp {
         // 🧹 Botão Clean
         document.getElementById('delete-tool').addEventListener('click', () => {
             const allObjects = this.state.getObjects();
+
+            // Grava histórico se houver objetos
             if (allObjects.length > 0) {
                 this.state.recordAction({
                     type: 'delete',
                     objects: [...allObjects]
                 });
+            }
 
-                this.state.objects = [];
-                this.state.undoHistory = [];
-                this.state.redoHistory = [];
+            // Limpa o estado do frontend
+            this.state.objects = [];
+            this.state.undoHistory = [];
+            this.state.redoHistory = [];
+            this.redrawCanvas();
 
-                this.redrawCanvas();
-
-                if (this.socket && this.socket.readyState === WebSocket.OPEN) {
-                    this.socket.send(JSON.stringify({
-                        usuario: this.usuarioEmail,
-                        tipo: "resetar",
-                        conteudo: []
-                    }));
-                }
+            // Sempre envia o reset para o backend
+            if (this.socket && this.socket.readyState === WebSocket.OPEN) {
+                this.socket.send(JSON.stringify({
+                    usuario: this.usuarioEmail,
+                    tipo: "resetar",
+                    conteudo: []
+                }));
             }
         });
+
     }
 
     updateCanvasFromRoomState(roomState) {
