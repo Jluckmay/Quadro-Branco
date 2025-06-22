@@ -101,54 +101,42 @@ async def websocket_frontend(websocket: WebSocket, token: str = Query(None)):
             print(f"📥 {usuario_email} enviou: {conteudo}")
 
             try:
-                insert_result = supabase_client.table("objetos").insert({
-                    "usuario_id": usuario_id,
-                    "sessao_id": "sessao123",
-                    "tipo": tipo,
-                    "acao": acao,
-                    "conteudo": json.dumps(conteudo)
-                }).execute()
-                print("✅ Dados salvos no Supabase.")
-            except Exception as e:
-                print("❌ Erro ao salvar no Supabase:", e)
-
-            if tipo == "resetar":
-                try:
-                    # 🗑️ Deleta todos os objetos da sessão
-                    supabase_client.table("objetos") \
-                        .delete() \
-                        .eq("sessao_id", "sessao123") \
-                        .execute()
-                    print("🗑️ Objetos apagados da tabela 'objetos'")
-
-                    # 🗑️ Deleta todos os estados anteriores dessa sessão
-                    supabase_client.table("quadro_estado") \
-                        .delete() \
-                        .eq("sessao_id", "sessao123") \
-                        .execute()
-                    print("🗑️ Registros antigos de estado removidos de 'quadro_estado'")
-
-                    # 🆕 Cria um novo estado vazio
-                    supabase_client.table("quadro_estado").insert({
+                    insert_result = supabase_client.table("objetos").insert({
+                        "usuario_id": usuario_id,
                         "sessao_id": "sessao123",
-                        "estado": [],
-                        "atualizado_em": datetime.datetime.utcnow().isoformat()
+                        "tipo": tipo,
+                        "acao": acao,
+                        "conteudo": json.dumps(conteudo)
                     }).execute()
-                    print("✅ Novo estado vazio criado em 'quadro_estado'")
 
-                    # 🔁 Envia comando de reset para todos os frontends conectados
-                    for ws in frontends:
-                        await ws.send_json({
-                            "usuario": usuario_email,
-                            "tipo": "desenho",
-                            "acao": "resetar",
-                            "conteudo": []
-                        })
+                    if insert_result.data and isinstance(insert_result.data, list):
+                        objeto_id = insert_result.data[0]["id"]
+                        print(f"✅ Objeto salvo com ID: {objeto_id}")
 
-                except Exception as e:
-                    print("❌ Erro ao executar reset:", e)
+                        # Atualiza quadro_estado com o novo ID
+                        estado_resp = supabase_client.table("quadro_estado") \
+                            .select("estado") \
+                            .eq("sessao_id", "sessao123") \
+                            .limit(1) \
+                            .execute()
 
-                continue
+                        estado_atual = estado_resp.data[0]["estado"] if estado_resp.data else []
+                        estado_atual.append(objeto_id)
+
+                        supabase_client.table("quadro_estado").update({
+                            "estado": estado_atual,
+                            "atualizado_em": datetime.datetime.utcnow().isoformat()
+                        }).eq("sessao_id", "sessao123").execute()
+                        print("🆙 Estado atualizado com novo ID.")
+
+                    else:
+                        print("⚠️ Inserção não retornou ID.")
+
+            except Exception as e:
+                    print("❌ Erro ao salvar ou atualizar estado no Supabase:", e)
+
+
+            continue
 
 
     except Exception as e:
