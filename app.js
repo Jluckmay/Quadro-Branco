@@ -174,7 +174,7 @@ class WhiteboardApp {
                 // Send the "clean" action to the backend
                 if (this.socket && this.socket.readyState === WebSocket.OPEN) {
                     this.socket.send(JSON.stringify({
-                        usuario: document.getElementById("auth-email").value,
+                        usuario: this.usuarioEmail
                         tipo: "desenho",
                         acao: "resetar",
                         conteudo: []
