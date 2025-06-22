@@ -733,72 +733,70 @@ class WhiteboardApp {
 
    
 
-    dragSelectedObject(e) {
+        dragSelectedObject(e) {
         if (!this.isDraggingObject || this.selectedObjects.length === 0) return;
 
-        const originalPositions = this.selectedObjects.map(obj => {
-            switch (obj.type) {
-                case 'text':
-                    return { x: obj.x, y: obj.y };
-                case 'rect':
-                case 'circle':
-                case 'line':
-                case 'star':
-                case 'arrow':
-                case 'polygon':
-                    return {
-                        startX: obj.startX,
-                        startY: obj.startY,
-                        endX: obj.endX,
-                        endY: obj.endY
-                    };
-                case 'pencil':
-                    return { points: [...obj.points] };
-            }
-        });
+        const index = this.state.getObjects().indexOf(this.selectedObjects[0]);
+        const lockedBy = this.lockedObjects[index];
+
+        if (lockedBy && lockedBy !== this.usuarioEmail) {
+            console.log(`🚫 Você não tem permissão para mover o objeto ${index}.`);
+            return;
+        }
 
         const rect = this.canvas.getBoundingClientRect();
         const x = e.clientX - rect.left;
         const y = e.clientY - rect.top;
 
-        this.selectedObjects.forEach(obj => {
-            switch (obj.type) {
-                case 'text':
-                    obj.x = x - this.dragOffsetX;
-                    obj.y = y - this.dragOffsetY;
-                    break;
-                case 'rect':
-                case 'circle':
-                case 'line':
-                case 'star':
-                case 'arrow':
-                case 'polygon':
-                    const deltaX = x - this.dragOffsetX - Math.min(obj.startX, obj.endX);
-                    const deltaY = y - this.dragOffsetY - Math.min(obj.startY, obj.endY);
-                    obj.startX += deltaX;
-                    obj.startY += deltaY;
-                    obj.endX += deltaX;
-                    obj.endY += deltaY;
-                    break;
-                case 'pencil':
-                    const firstPointDeltaX = x - this.dragOffsetX - obj.points[0].x;
-                    const firstPointDeltaY = y - this.dragOffsetY - obj.points[0].y;
+        const obj = this.selectedObjects[0];
 
-                    obj.points = obj.points.map(point => ({
-                        x: point.x + firstPointDeltaX,
-                        y: point.y + firstPointDeltaY
-                    }));
-                    break;
-            }
-        });
+        // Atualiza posição com base no tipo
+        switch (obj.type) {
+            case 'text':
+                obj.x = x - this.dragOffsetX;
+                obj.y = y - this.dragOffsetY;
+                break;
+            case 'rect':
+            case 'circle':
+            case 'line':
+            case 'star':
+            case 'arrow':
+            case 'polygon':
+                const deltaX = x - this.dragOffsetX - Math.min(obj.startX, obj.endX);
+                const deltaY = y - this.dragOffsetY - Math.min(obj.startY, obj.endY);
+                obj.startX += deltaX;
+                obj.endX += deltaX;
+                obj.startY += deltaY;
+                obj.endY += deltaY;
+                break;
+            case 'pencil':
+                const offsetX = x - this.dragOffsetX;
+                const offsetY = y - this.dragOffsetY;
+                const deltaPX = offsetX - obj.points[0].x;
+                const deltaPY = offsetY - obj.points[0].y;
+                obj.points.forEach(p => {
+                    p.x += deltaPX;
+                    p.y += deltaPY;
+                });
+                break;
+        }
 
-        this.state.recordAction({
-            type: 'move',
-            originalPositions: originalPositions
-        });
+        // Enviar atualização
+        if (this.socket && this.socket.readyState === WebSocket.OPEN) {
+            this.socket.send(JSON.stringify({
+                tipo: "desenho",
+                acao: "mover_objeto",
+                conteudo: {
+                    index,
+                    objeto: obj
+                },
+                usuario: this.usuarioEmail
+            }));
+        }
 
         this.redrawCanvas();
     }
+
 
     stopDraggingObject(e) {
         if (this.socket && this.socket.readyState === WebSocket.OPEN) {
