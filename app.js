@@ -56,12 +56,12 @@ class WhiteboardState {
         return lastAction;
     }
 
-   restoreState(objetos) {
-    this.objects = [...objetos];
-    this.undoHistory = [];
-    this.redoHistory = [];
-    this.actionHistory = [];
+restoreState(listaDoBackend) {
+    this.objects = listaDoBackend
+        .filter(obj => obj.acao === "novo_objeto" || obj.acao === "desenho")
+        .map(obj => obj.conteudo);
 }
+
 
 }
 
