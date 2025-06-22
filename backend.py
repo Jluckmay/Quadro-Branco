@@ -72,6 +72,7 @@ async def websocket_frontend(websocket: WebSocket, token: str = Query(None)):
     frontends.add(websocket)
     print(f"🔌 Frontend conectado: {usuario_email}")
 
+
     try:
         while True:
             if websocket.application_state != WebSocketState.CONNECTED:
@@ -88,14 +89,29 @@ async def websocket_frontend(websocket: WebSocket, token: str = Query(None)):
                     if locks.get(index) in [None, usuario_id]:
                         locks[index] = usuario_id
                         print(f"🔒 Lock adquirido por {usuario_email} no objeto {index}")
+                        await websocket.send_json({
+                            "tipo": "lock",
+                            "acao": "adquirido",
+                            "conteudo": {"index": index, "usuario_id": usuario_id}
+                        })
                     else:
                         print(f"❌ Lock negado para {usuario_email} no objeto {index} (já está com {locks.get(index)})")
-                        continue
+                        await websocket.send_json({
+                            "tipo": "lock",
+                            "acao": "negado",
+                            "conteudo": {"index": index, "usuario_id": locks.get(index)}
+                        })
+                    continue
                 elif acao == "liberar":
                     if locks.get(index) == usuario_id:
                         del locks[index]
                         print(f"🔓 Lock liberado por {usuario_email} no objeto {index}")
-                continue
+                        await websocket.send_json({
+                            "tipo": "lock",
+                            "acao": "liberado",
+                            "conteudo": {"index": index}
+                        })
+                    continue
 
             quadro_dados[usuario_id] = conteudo
             print(f"📥 {usuario_email} enviou: {conteudo}")
