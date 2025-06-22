@@ -1223,8 +1223,13 @@ this.socket.onmessage = (event) => {
         return;
     }
 
-    if (data.tipo === "desenho") {
+    if (data.tipo === "desenho" || data.tipo === "resetar") {
         switch (data.acao) {
+            case "resetar":
+                this.state.objects = [];
+                this.redrawCanvas();
+                break;
+
             case "novo_objeto":
                 this.state.objects.push(data.conteudo);
                 break;
@@ -1243,17 +1248,13 @@ this.socket.onmessage = (event) => {
                 }
                 break;
 
-            case "resetar":
-                this.state.objects = [];
-                break;
-
             case "undo":
             case "redo":
                 this.state.objects = data.conteudo;
                 break;
         }
 
-        this.redrawCanvas(); // Atualiza o canvas após qualquer mudança
+        this.redrawCanvas();
     }
 };
 
