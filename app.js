@@ -51,14 +51,14 @@ class WhiteboardState {
 
     undoLastAction() {
         if (this.actionHistory.length === 0) return null;
-        return this.actionHistory.pop();
+
+        const lastAction = this.actionHistory.pop();
+        return lastAction;
     }
 }
 
 class WhiteboardApp {
-    constructor(usuarioEmail) {
-        this.usuarioEmail = usuarioEmail;
-
+    constructor() {
         this.canvas = document.getElementById('whiteboard');
         this.ctx = this.canvas.getContext('2d');
         this.colorPicker = document.getElementById('color-picker');
@@ -81,170 +81,78 @@ class WhiteboardApp {
 
         this.selectionColor = 'rgba(0, 123, 255, 0.3)';
 
+        // Multiplayer setup
         this.room = null;
         this.socket = null;
 
         this.initializeCanvas();
         this.setupEventListeners();
         this.setupMultiplayer();
-        this.setupLocalDrawingSync();
+        this.setupLocalDrawingSync()
         this.connectWebSocket();
     }
+
     initializeCanvas() {
         this.resizeCanvas();
         window.addEventListener('resize', () => this.resizeCanvas());
     }
-    
+
     resizeCanvas() {
         this.canvas.width = window.innerWidth;
         this.canvas.height = window.innerHeight - 60;
         this.redrawCanvas();
     }
 
-     setupEventListeners() {
-        this.canvas.addEventListener('mousedown', (e) => this.startDrawing(e));
-        this.canvas.addEventListener('mousemove', (e) => {
-            if (this.isDrawing) this.draw(e);
-            if (this.isDraggingObject) this.dragSelectedObject(e);
-        });
-        this.canvas.addEventListener('mouseup', (e) => {
-            this.stopDrawing(e);
-            this.stopDraggingObject(e);
-        });
-        this.canvas.addEventListener('mouseleave', (e) => {
-            this.stopDrawing(e);
-            this.stopDraggingObject(e);
+    setupEventListeners() {
+        document.querySelectorAll('.dropdown-item').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                this.selectTool(e.target.dataset.tool);
+                // Close dropdown
+                const dropdown = document.getElementById('geometric-shapes-dropdown');
+                const bsDropdown = bootstrap.Dropdown.getInstance(dropdown);
+                if (bsDropdown) {
+                    bsDropdown.hide();
+                }
+            });
         });
 
-        this.colorPicker.addEventListener('input', (e) => {
+        document.querySelectorAll('.tool-btn:not(.dropdown-toggle)').forEach(btn => {
+            btn.addEventListener('click', (e) => this.selectTool(e.target.dataset.tool));
+        });
+
+        this.colorPicker.addEventListener('change', (e) => {
             this.currentColor = e.target.value;
         });
-    }
 
-    initializeCanvas() {
-        this.canvas.width = window.innerWidth;
-        this.canvas.height = window.innerHeight;
-        this.redrawCanvas();
-    }
-
-    drawObject(obj) {
-        if (obj && obj.x !== undefined && obj.y !== undefined) {
-            this.ctx.fillStyle = obj.color || this.currentColor;
-            this.ctx.beginPath();
-            this.ctx.arc(obj.x, obj.y, 3, 0, 2 * Math.PI);
-            this.ctx.fill();
-        }
-    }
-
-        const originalRemoveObject = this.state.removeObject.bind(this.state);
-        this.state.removeObject = (index) => {
-            const removedObject = originalRemoveObject(index);
-            if (this.room) {
-                this.room.updateRoomState({ [`object_${index}`]: null });
+        this.canvas.addEventListener('mousedown', (e) => {
+            if (this.currentTool === 'eraser') {
+                this.handleDeletion(e);
+            } else {
+                this.startDrawing(e);
             }
-            if (this.socket && this.socket.readyState === WebSocket.OPEN) {
-                this.socket.send(JSON.stringify({
-                    usuario: this.usuarioEmail,
-                    tipo: "desenho",
-                    acao: "remover_objeto",
-                    conteudo: { index }
-                }));
+        });
+        this.canvas.addEventListener('mousemove', (e) => {
+            if (this.currentTool === 'move' && this.isDraggingObject) {
+                this.dragSelectedObject(e);
+            } else if (this.currentTool === 'eraser') {
+                this.draw(e);
+            } else {
+                this.draw(e);
             }
-            return removedObject;
-        };
-
-    
-    setupLocalDrawingSync() {
-        const originalAddObject = this.state.addObject.bind(this.state);
-        this.state.addObject = (obj) => {
-            const index = originalAddObject(obj);
-
-            if (this.room) {
-                this.room.updateRoomState({ [`object_${index}`]: obj });
+        });
+        this.canvas.addEventListener('mouseup', (e) => {
+            if (this.currentTool === 'move' && this.isDraggingObject) {
+                this.stopDraggingObject(e);
+            } else {
+                this.stopDrawing(e);
             }
+        });
+        this.canvas.addEventListener('mouseout', () => this.stopDrawing());
 
-            if (this.socket && this.socket.readyState === WebSocket.OPEN) {
-                this.socket.send(JSON.stringify({
-                    usuario: this.usuarioEmail,
-                    tipo: "desenho",
-                    acao: "novo_objeto",
-                    conteudo: obj
-                }));
-            }
+        document.getElementById('undo-btn').addEventListener('click', () => this.undo());
+        document.getElementById('redo-btn').addEventListener('click', () => this.redo());
 
-            return index;
-        };
-
-        const originalRemoveObject = this.state.removeObject.bind(this.state);
-        this.state.removeObject = (index) => {
-            const removedObject = originalRemoveObject(index);
-
-            if (this.room) {
-                this.room.updateRoomState({ [`object_${index}`]: null });
-            }
-
-            if (this.socket && this.socket.readyState === WebSocket.OPEN) {
-                this.socket.send(JSON.stringify({
-                    usuario: this.usuarioEmail,
-                    tipo: "desenho",
-                    acao: "remover_objeto",
-                    conteudo: { index }
-                }));
-            }
-
-            return removedObject;
-        };
-
-        const originalRecordAction = this.state.recordAction.bind(this.state);
-        this.state.recordAction = (action) => {
-            originalRecordAction(action);
-
-            if (action.type === "move" && this.socket?.readyState === WebSocket.OPEN) {
-                this.selectedObjects.forEach(obj => {
-                    const index = this.state.objects.indexOf(obj);
-                    const localObj = this.state.objects[index];
-
-                    if (index !== -1 && localObj.version === obj.version) {
-                        obj.version = (obj.version || 0) + 1;
-
-                        this.socket.send(JSON.stringify({
-                            usuario: this.usuarioEmail,
-                            tipo: "desenho",
-                            acao: "mover_objeto",
-                            conteudo: { index, objeto: obj }
-                        }));
-                    } else {
-                        alert("⚠️ Conflito de versão detectado. Atualize o canvas.");
-                    }
-                });
-            }
-        };
-
-        const originalUndo = this.undo.bind(this);
-        this.undo = () => {
-            originalUndo();
-            if (this.socket?.readyState === WebSocket.OPEN) {
-                this.socket.send(JSON.stringify({
-                    usuario: this.usuarioEmail,
-                    tipo: "desenho",
-                    acao: "undo",
-                    conteudo: this.state.getObjects()
-                }));
-            }
-        };
-
-        const originalRedo = this.redo.bind(this);
-        this.redo = () => {
-            originalRedo();
-            if (this.socket?.readyState === WebSocket.OPEN) {
-                this.socket.send(JSON.stringify({
-                    usuario: this.usuarioEmail,
-                    tipo: "desenho",
-                    acao: "redo",
-                    conteudo: this.state.getObjects()
-                }));
-            }
-        };
+        document.getElementById('join-room-btn').addEventListener('click', () => this.initializeMultiplayerRoom());
 
         document.getElementById('delete-tool').addEventListener('click', () => {
             const allObjects = this.state.getObjects();
@@ -254,15 +162,18 @@ class WhiteboardApp {
                     objects: [...allObjects]
                 });
 
+                // Clear the state completely
                 this.state.objects = [];
                 this.state.undoHistory = [];
                 this.state.redoHistory = [];
 
+                // Redraw the canvas (which will now be empty)
                 this.redrawCanvas();
 
-                if (this.socket?.readyState === WebSocket.OPEN) {
+                // Send the "clean" action to the backend
+                if (this.socket && this.socket.readyState === WebSocket.OPEN) {
                     this.socket.send(JSON.stringify({
-                        usuario: this.usuarioEmail,
+                        usuario: document.getElementById("auth-email").value,
                         tipo: "desenho",
                         acao: "resetar",
                         conteudo: []
@@ -270,9 +181,11 @@ class WhiteboardApp {
                 }
             }
         });
+
+        document.getElementById('dark-mode-toggle').addEventListener('click', () => {
+            document.body.classList.toggle('dark-mode');
+        });
     }
-
-
 
     selectTool(tool) {
         document.querySelectorAll('.tool-btn').forEach(btn => {
@@ -1200,7 +1113,7 @@ class WhiteboardApp {
             return removedObject;
         };
 
-        // 🧭 Envia movimentação quando ela acontecer (com lock otimista)
+        // 🧭 Envia movimentação quando ela acontecer
         const originalRecordAction = this.state.recordAction.bind(this.state);
         this.state.recordAction = (action) => {
             originalRecordAction(action);
@@ -1209,19 +1122,13 @@ class WhiteboardApp {
                 if (this.socket && this.socket.readyState === WebSocket.OPEN) {
                     this.selectedObjects.forEach(obj => {
                         const index = this.state.objects.indexOf(obj);
-                        const localObj = this.state.objects[index];
-
-                        if (index !== -1 && localObj.version === obj.version) {
-                            obj.version = (obj.version || 0) + 1; // incrementa versão
-
+                        if (index !== -1) {
                             this.socket.send(JSON.stringify({
                                 usuario: document.getElementById("auth-email").value,
                                 tipo: "desenho",
                                 acao: "mover_objeto",
                                 conteudo: { index, objeto: obj }
                             }));
-                        } else {
-                            alert("⚠️ Conflito de versão detectado. Atualize o canvas.");
                         }
                     });
                 }
@@ -1322,15 +1229,6 @@ class WhiteboardApp {
             const data = JSON.parse(event.data);
             console.log("📥 Mensagem do backend:", data);
 
-            // Trata o estado inicial recebido do backend
-            if (data.tipo === "estado_inicial") {
-                // Substitui todos os objetos atuais pelos recebidos do backend
-                this.state.objects = data.objetos || [];
-                this.redrawCanvas();
-                return; // Não processa mais nada para esta mensagem
-            }
-
-
             if (data.tipo === "desenho") {
                 switch (data.acao) {
                     case "novo_objeto":
@@ -1374,7 +1272,7 @@ class WhiteboardApp {
 };
 
 
-const GeometricShapes = {
+GeometricShapes = {
     drawLine: (ctx, startX, startY, endX, endY, color) => {
         ctx.beginPath();
         ctx.moveTo(startX, startY);
@@ -1398,6 +1296,7 @@ const GeometricShapes = {
     },
 
     drawArrow: (ctx, startX, startY, endX, endY, color, angle, headLength = 10) => {
+
         ctx.beginPath();
         ctx.moveTo(startX, startY);
         ctx.lineTo(endX, endY);
@@ -1428,508 +1327,8 @@ const GeometricShapes = {
         ctx.strokeStyle = color;
         ctx.stroke();
     }
-};
+}
 
 window.addEventListener('load', () => {
-    const email = localStorage.getItem("usuario_email") || "anonimo@sememail.com";
-    new WhiteboardApp(email);
+    new WhiteboardApp();
 });
-
-   
-
-    redrawCanvas() {
-        this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
-
-        const objects = this.state.getObjects();
-        objects.forEach(obj => {
-            this.ctx.strokeStyle = obj.color;
-            this.ctx.fillStyle = obj.color;
-
-            const isSelected = this.selectedObjects.includes(obj);
-
-            switch (obj.type) {
-                case 'pencil':
-                    if (obj.points.length > 1) {
-                        this.ctx.beginPath();
-                        this.ctx.moveTo(obj.points[0].x, obj.points[0].y);
-                        obj.points.slice(1).forEach(point => {
-                            this.ctx.lineTo(point.x, point.y);
-                        });
-                        this.ctx.lineWidth = 2;
-                        this.ctx.lineCap = 'round';
-                        this.ctx.stroke();
-
-                        if (isSelected) {
-                            this.drawSelectionHighlight(obj.points);
-                        }
-                    }
-                    break;
-                case 'rect':
-                    if (isSelected) {
-                        this.ctx.fillStyle = this.selectionColor;
-                        this.ctx.fillRect(
-                            Math.min(obj.startX, obj.endX),
-                            Math.min(obj.startY, obj.endY),
-                            Math.abs(obj.endX - obj.startX),
-                            Math.abs(obj.endY - obj.startY)
-                        );
-                    }
-
-                    this.ctx.strokeRect(
-                        Math.min(obj.startX, obj.endX),
-                        Math.min(obj.startY, obj.endY),
-                        Math.abs(obj.endX - obj.startX),
-                        Math.abs(obj.endY - obj.startY)
-                    );
-                    break;
-                case 'circle':
-                    const radius = Math.sqrt(
-                        Math.pow(obj.endX - obj.startX, 2) +
-                        Math.pow(obj.endY - obj.startY, 2)
-                    );
-
-                    if (isSelected) {
-                        this.ctx.beginPath();
-                        this.ctx.fillStyle = this.selectionColor;
-                        this.ctx.arc(obj.startX, obj.startY, radius, 0, 2 * Math.PI);
-                        this.ctx.fill();
-                    }
-
-                    this.ctx.beginPath();
-                    this.ctx.arc(obj.startX, obj.startY, radius, 0, 2 * Math.PI);
-                    this.ctx.stroke();
-                    break;
-                case 'text':
-                    this.ctx.font = '16px Arial';
-
-                    const metrics = this.ctx.measureText(obj.text);
-                    obj.width = metrics.width;
-
-                    this.ctx.fillText(obj.text, obj.x, obj.y);
-
-                    if (isSelected) {
-                        this.ctx.fillStyle = this.selectionColor;
-                        this.ctx.fillRect(
-                            obj.x,
-                            obj.y - obj.height,
-                            obj.width,
-                            obj.height
-                        );
-
-                        this.ctx.fillStyle = obj.color;
-                        this.ctx.fillText(obj.text, obj.x, obj.y);
-                    }
-                    break;
-                case 'line':
-                    if (isSelected) {
-                        this.ctx.fillStyle = this.selectionColor;
-                        this.ctx.beginPath();
-                        this.ctx.moveTo(obj.startX, obj.startY);
-                        this.ctx.lineTo(obj.endX, obj.endY);
-                        this.ctx.lineTo((obj.startX + obj.endX) / 2, (obj.startY + obj.endY) / 2);
-                        this.ctx.fill();
-                    }
-                    this.ctx.beginPath();
-                    this.ctx.moveTo(obj.startX, obj.startY);
-                    this.ctx.lineTo(obj.endX, obj.endY);
-                    this.ctx.lineTo((obj.startX + obj.endX) / 2, (obj.startY + obj.endY) / 2);
-                    this.ctx.closePath();
-                    this.ctx.stroke();
-                    break;
-                case 'star':
-                    const size = obj.size;
-                    if (isSelected) {
-                        this.ctx.beginPath();
-                        this.ctx.fillStyle = this.selectionColor;
-                        const outerRadius = size;
-                        const innerRadius = size / 2;
-                        const points = 5;
-                        for (let i = 0; i < points * 2; i++) {
-                            const angle = (i * Math.PI) / points - Math.PI / 2;
-                            const radius = i % 2 === 0 ? outerRadius : innerRadius;
-                            if (i === 0) {
-                                this.ctx.moveTo(obj.centerX + radius * Math.cos(angle), obj.centerY + radius * Math.sin(angle));
-                            } else {
-                                this.ctx.lineTo(obj.centerX + radius * Math.cos(angle), obj.centerY + radius * Math.sin(angle));
-                            }
-                        }
-                        this.ctx.fill();
-                    }
-                    this.ctx.beginPath();
-                    const outerRadius = size;
-                    const innerRadius = size / 2;
-                    const points = 5;
-                    for (let i = 0; i < points * 2; i++) {
-                        const angle = (i * Math.PI) / points - Math.PI / 2;
-                        const radius = i % 2 === 0 ? outerRadius : innerRadius;
-                        if (i === 0) {
-                            this.ctx.moveTo(obj.centerX + radius * Math.cos(angle), obj.centerY + radius * Math.sin(angle));
-                        } else {
-                            this.ctx.lineTo(obj.centerX + radius * Math.cos(angle), obj.centerY + radius * Math.sin(angle));
-                        }
-                    }
-                    this.ctx.closePath();
-                    this.ctx.stroke();
-                    break;
-                case 'arrow':
-                    if (isSelected) {
-                        this.ctx.fillStyle = this.selectionColor;
-                        this.ctx.beginPath();
-                        this.ctx.moveTo(obj.startX, obj.startY);
-                        this.ctx.lineTo(obj.endX, obj.endY);
-                        this.ctx.stroke();
-                    }
-
-                    // Draw arrow with stored angle and head length
-                    GeometricShapes.drawArrow(
-                        this.ctx,
-                        obj.startX,
-                        obj.startY,
-                        obj.endX,
-                        obj.endY,
-                        obj.color,
-                        obj.angle,
-                        obj.headLength
-                    );
-                    break;
-                case 'polygon':
-                    const polygonRadius = obj.radius;
-                    if (isSelected) {
-                        this.ctx.beginPath();
-                        this.ctx.fillStyle = this.selectionColor;
-                        for (let i = 0; i < obj.sides; i++) {
-                            const angle = (i * 2 * Math.PI) / obj.sides;
-                            this.ctx.lineTo(obj.centerX + polygonRadius * Math.cos(angle), obj.centerY + polygonRadius * Math.sin(angle));
-                        }
-                        this.ctx.fill();
-                    }
-                    this.ctx.beginPath();
-                    for (let i = 0; i < obj.sides; i++) {
-                        const angle = (i * 2 * Math.PI) / obj.sides;
-                        this.ctx.lineTo(obj.centerX + polygonRadius * Math.cos(angle), obj.centerY + polygonRadius * Math.sin(angle));
-                    }
-                    this.ctx.closePath();
-                    this.ctx.stroke();
-                    break;
-            }
-        });
-    }
-
-    drawSelectionHighlight(points) {
-        if (points.length < 2) return;
-
-        this.ctx.beginPath();
-        this.ctx.moveTo(points[0].x, points[0].y);
-        points.slice(1).forEach(point => {
-            this.ctx.lineTo(point.x, point.y);
-        });
-
-        this.ctx.lineWidth = 10;
-        this.ctx.lineCap = 'round';
-        this.ctx.strokeStyle = this.selectionColor;
-        this.ctx.stroke();
-    }
-
-    setupMultiplayer() {
-        const joinRoomBtn = document.getElementById('join-room-btn');
-        joinRoomBtn.addEventListener('click', () => this.initializeMultiplayerRoom());
-    }
-
-    async initializeMultiplayerRoom() {
-        const username = document.getElementById('username').value.trim();
-        const roomCode = document.getElementById('room-code').value.trim();
-
-        if (!username || !roomCode) {
-            alert('Please enter both username and room code');
-            return;
-        }
-
-        try {
-            // Initialize WebsimSocket room
-            this.room = new WebsimSocket();
-            await this.room.initialize();
-
-            // Subscribe to room state updates
-            this.room.subscribeRoomState((roomState) => {
-                this.updateCanvasFromRoomState(roomState);
-            });
-
-            // Subscribe to presence updates for other users' actions
-            this.room.subscribePresence((presence) => {
-                this.handleOtherUserPresence(presence);
-            });
-
-            // Setup local drawing synchronization
-            this.setupLocalDrawingSync();
-
-            // Close multiplayer modal
-            const modal = bootstrap.Modal.getInstance(document.getElementById('multiplayer-modal'));
-            modal.hide();
-
-            alert(`Successfully joined room ${roomCode} as ${username}`);
-        } catch (error) {
-            console.error('Multiplayer initialization error:', error);
-            alert('Failed to join multiplayer room. Please try again.');
-        }
-    }
-
-    
-
-        // ❌ Remove objeto
-        const originalRemoveObject = this.state.removeObject.bind(this.state);
-        this.state.removeObject = (index) => {
-            const removedObject = originalRemoveObject(index);
-
-            if (this.room) {
-                this.room.updateRoomState({
-                    [`object_${index}`]: null
-                });
-            }
-
-            if (this.socket && this.socket.readyState === WebSocket.OPEN) {
-                this.socket.send(JSON.stringify({
-                    usuario: document.getElementById("auth-email").value,
-                    tipo: "desenho",
-                    acao: "remover_objeto",
-                    conteudo: { index: index }
-                }));
-            }
-
-            return removedObject;
-        };
-
-        // 🧭 Envia movimentação quando ela acontecer (com lock otimista)
-        const originalRecordAction = this.state.recordAction.bind(this.state);
-        this.state.recordAction = (action) => {
-            originalRecordAction(action);
-
-            if (action.type === "move") {
-                if (this.socket && this.socket.readyState === WebSocket.OPEN) {
-                    this.selectedObjects.forEach(obj => {
-                        const index = this.state.objects.indexOf(obj);
-                        const localObj = this.state.objects[index];
-
-                        if (index !== -1 && localObj.version === obj.version) {
-                            obj.version = (obj.version || 0) + 1; // incrementa versão
-
-                            this.socket.send(JSON.stringify({
-                                usuario: document.getElementById("auth-email").value,
-                                tipo: "desenho",
-                                acao: "mover_objeto",
-                                conteudo: { index, objeto: obj }
-                            }));
-                        } else {
-                            alert("⚠️ Conflito de versão detectado. Atualize o canvas.");
-                        }
-                    });
-                }
-            }
-        };
-
-        // 🕐 Undo
-        const originalUndo = this.undo.bind(this);
-        this.undo = () => {
-            originalUndo();
-            if (this.socket && this.socket.readyState === WebSocket.OPEN) {
-                this.socket.send(JSON.stringify({
-                    usuario: document.getElementById("auth-email").value,
-                    tipo: "desenho",
-                    acao: "undo",
-                    conteudo: this.state.getObjects()
-                }));
-            }
-        };
-
-        // 🔁 Redo
-        const originalRedo = this.redo.bind(this);
-        this.redo = () => {
-            originalRedo();
-            if (this.socket && this.socket.readyState === WebSocket.OPEN) {
-                this.socket.send(JSON.stringify({
-                    usuario: document.getElementById("auth-email").value,
-                    tipo: "desenho",
-                    acao: "redo",
-                    conteudo: this.state.getObjects()
-                }));
-            }
-        };
-
-        // 🧹 Botão Clean
-        document.getElementById('delete-tool').addEventListener('click', () => {
-            const allObjects = this.state.getObjects();
-            if (allObjects.length > 0) {
-                this.state.recordAction({
-                    type: 'delete',
-                    objects: [...allObjects]
-                });
-
-                this.state.objects = [];
-                this.state.undoHistory = [];
-                this.state.redoHistory = [];
-
-                this.redrawCanvas();
-
-                if (this.socket && this.socket.readyState === WebSocket.OPEN) {
-                    this.socket.send(JSON.stringify({
-                        usuario: document.getElementById("auth-email").value,
-                        tipo: "desenho",
-                        acao: "resetar",
-                        conteudo: []
-                    }));
-                }
-            }
-        });
-    }
-
-    updateCanvasFromRoomState(roomState) {
-        // Clear current state and rebuild from room state
-        this.state.objects = [];
-
-        // Rebuild objects from room state
-        Object.keys(roomState)
-            .filter(key => key.startsWith('object_'))
-            .forEach(key => {
-                const obj = roomState[key];
-                if (obj) {
-                    this.state.objects.push(obj);
-                }
-            });
-
-        // Redraw canvas
-        this.redrawCanvas();
-    }
-
-    handleOtherUserPresence(presence) {
-        // You can add additional logic to handle other users' presence if needed
-        // For example, showing cursors or tracking active users
-        console.log('Other users presence updated:', presence);
-    }
-
-    joinMultiplayerRoom() {
-        console.warn('Use initializeMultiplayerRoom instead');
-    }
-
-    connectWebSocket() {
-        this.socket = new WebSocket("wss://quadrobranco-ffap.onrender.com/ws/frontend");
-
-        this.socket.onopen = () => {
-            console.log("✅ Conectado ao backend");
-        };
-
-        this.socket.onmessage = (event) => {
-            const data = JSON.parse(event.data);
-            console.log("📥 Mensagem do backend:", data);
-
-            // Trata o estado inicial recebido do backend
-            if (data.tipo === "estado_inicial") {
-                // Substitui todos os objetos atuais pelos recebidos do backend
-                this.state.objects = data.objetos || [];
-                this.redrawCanvas();
-                return; // Não processa mais nada para esta mensagem
-            }
-
-
-            if (data.tipo === "desenho") {
-                switch (data.acao) {
-                    case "novo_objeto":
-                        this.state.objects.push(data.conteudo);
-                        break;
-
-                    case "remover_objeto":
-                        const idx = data.conteudo.index;
-                        if (typeof idx === "number" && idx >= 0 && idx < this.state.objects.length) {
-                            this.state.objects.splice(idx, 1);
-                        }
-                        break;
-
-
-                    case "mover_objeto":
-                        // Substitui objeto antigo pelo novo (simplificado)
-                        const moved = data.conteudo;
-                        if (moved.index >= 0) {
-                            this.state.objects[moved.index] = moved.objeto;
-                        }
-                        break;
-
-                    case "resetar":
-                        this.state.objects = [];
-                        break;
-
-                    case "undo":
-                    case "redo":
-                        // Aqui depende se você envia o objeto atualizado
-                        this.state.objects = data.conteudo;
-                        break;
-                }
-
-                this.redrawCanvas(); // Atualiza o canvas após qualquer mudança
-            }
-
-            this.redrawCanvas();
-        }
-
-    }
-};
-
-
-const GeometricShapes = {
-    drawLine: (ctx, startX, startY, endX, endY, color) => {
-        ctx.beginPath();
-        ctx.moveTo(startX, startY);
-        ctx.lineTo(endX, endY);
-        ctx.lineTo((startX + endX) / 2, (startY + endY) / 2);
-        ctx.closePath();
-        ctx.strokeStyle = color;
-        ctx.stroke();
-    },
-
-    drawStar: (ctx, centerX, centerY, size, color) => {
-        ctx.beginPath();
-        for (let i = 0; i < 5; i++) {
-            const angle = (i * 2 * Math.PI) / 5;
-            const radius = (i % 2 === 0) ? size : size / 2;
-            ctx.lineTo(centerX + radius * Math.cos(angle), centerY + radius * Math.sin(angle));
-        }
-        ctx.closePath();
-        ctx.strokeStyle = color;
-        ctx.stroke();
-    },
-
-    drawArrow: (ctx, startX, startY, endX, endY, color, angle, headLength = 10) => {
-        ctx.beginPath();
-        ctx.moveTo(startX, startY);
-        ctx.lineTo(endX, endY);
-        ctx.strokeStyle = color;
-        ctx.stroke();
-
-        ctx.fillStyle = color;
-        ctx.beginPath();
-        ctx.moveTo(
-            endX - headLength * Math.cos(angle - Math.PI / 6),
-            endY - headLength * Math.sin(angle - Math.PI / 6)
-        );
-        ctx.lineTo(endX, endY);
-        ctx.lineTo(
-            endX - headLength * Math.cos(angle + Math.PI / 6),
-            endY - headLength * Math.sin(angle + Math.PI / 6)
-        );
-        ctx.fill();
-    },
-
-    drawPolygon: (ctx, centerX, centerY, sides, radius, color) => {
-        ctx.beginPath();
-        for (let i = 0; i < sides; i++) {
-            const angle = (i * 2 * Math.PI) / sides;
-            ctx.lineTo(centerX + radius * Math.cos(angle), centerY + radius * Math.sin(angle));
-        }
-        ctx.closePath();
-        ctx.strokeStyle = color;
-        ctx.stroke();
-    }
-};
-
-window.addEventListener('load', () => {
-    const email = localStorage.getItem("usuario_email") || "anonimo@sememail.com";
-    new WhiteboardApp(email);
-});
-
