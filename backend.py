@@ -8,7 +8,7 @@ import json
 
 SUPABASE_URL = "https://dayvyzxacovefbjgluaq.supabase.co"
 SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
-SUPABASE_JWT_SECRET = "vusfUw2JcrTQ9WJ2b02YWwCw-NNjwmixZAjvMy9Prms"
+SUPABASE_JWT_SECRET = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRheXZ5enhhY292ZWZiamdsdWFxIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc0OTQyMTQwMCwiZXhwIjoyMDY0OTk3NDAwfQ.vusfUw2JcrTQ9WJ2b02YWwCw-NNjwmixZAjvMy9Prms"
 
 supabase_client: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 app = FastAPI()
