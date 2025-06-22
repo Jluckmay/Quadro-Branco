@@ -183,7 +183,8 @@ async def websocket_frontend(websocket: WebSocket, token: str = Query(None)):
                     "acao": acao,
                     "conteudo": conteudo
                 })
-
+            continue
+        
     except Exception as e:
         print(f"⚠️ {usuario_email} desconectado.")
         print("❌ Erro:", e)
