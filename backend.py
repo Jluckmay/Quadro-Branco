@@ -100,12 +100,12 @@ async def websocket_frontend(websocket: WebSocket, token: str = Query(None)):
             print(f"📥 {usuario_email} enviou: {conteudo}")
 
             try:
-                supabase_client.table("objetos").insert({
+                insert_result = supabase_client.table("objetos").insert({
                     "usuario_id": usuario_id,
                     "sessao_id": "sessao123",
                     "tipo": tipo,
                     "acao": acao,
-                    "conteudo": json.dumps(conteudo)  # serializa como string JSON
+                    "conteudo": json.dumps(conteudo)
                 }).execute()
                 print("✅ Dados salvos no Supabase.")
             except Exception as e:
@@ -113,18 +113,25 @@ async def websocket_frontend(websocket: WebSocket, token: str = Query(None)):
 
             if tipo == "resetar":
                 atualizar_estado(supabase_client, "sessao123", [])
-            else:
+            elif tipo == "desenho" and acao in ["novo_objeto", "mover_objeto"]:
+                # Atualiza a lista de IDs com base no retorno da inserção
+                novo_id = insert_result.data[0]["id"] if insert_result and insert_result.data else None
+
+                # Busca estado atual
                 response = supabase_client.table("quadro_estado") \
                     .select("estado") \
                     .eq("sessao_id", "sessao123") \
                     .order("atualizado_em", desc=True) \
                     .limit(1) \
                     .execute()
-                
-            if not acao:
-                acao = "novo_objeto"
 
                 lista_ids = response.data[0]["estado"] if response and response.data else []
+
+                if novo_id and novo_id not in lista_ids:
+                    lista_ids.append(novo_id)
+
+                atualizar_estado(supabase_client, "sessao123", lista_ids)
+
 
                 resultado = supabase_client.table("objetos") \
                     .select("id") \
@@ -132,7 +139,6 @@ async def websocket_frontend(websocket: WebSocket, token: str = Query(None)):
                     .eq("sessao_id", "sessao123") \
                     .in_("acao", ["novo_objeto", "desenho"]) \
                     .order("id", desc=True) \
-                    .limit(10) \
                     .execute()
 
                 novos_ids = [obj["id"] for obj in resultado.data] if resultado and resultado.data else []
