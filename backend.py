@@ -33,7 +33,7 @@ async def websocket_frontend(websocket: WebSocket, token: str = Query(None)):
         return
 
     try:
-        response = supabase_client.table("quadro_estado").select("estado").eq("sessao_id", "sessao123").single().execute()
+        response = supabase_client.table("quadro_estado").select("estado").eq("sessao_id", "sessao123").limit(1).execute()
         estado = response.data["estado"] if response and response.data and "estado" in response.data else []
         objetos = []
         if estado:
@@ -88,7 +88,7 @@ async def websocket_frontend(websocket: WebSocket, token: str = Query(None)):
                 print("❌ Erro ao salvar no Supabase:", e)
 
             if tipo == "resetar":
-                atualizar_estado("sessao123", [])
+                atualizar_estado(supabase_client, "sessao123", lista_ids)
             else:
                 response = supabase_client.table("quadro_estado").select("estado").eq("sessao_id", "sessao123").order("atualizado_em", desc=True).limit(1).execute()
                 lista_ids = response.data[0]["estado"] if response and response.data else []
@@ -99,7 +99,7 @@ async def websocket_frontend(websocket: WebSocket, token: str = Query(None)):
                 if novo_id and novo_id not in lista_ids:
                     lista_ids.append(novo_id)
 
-                atualizar_estado("sessao123", lista_ids)
+                atualizar_estado(supabase_client, "sessao123", lista_ids)
 
             if core_ws:
                 await core_ws.send_json({
