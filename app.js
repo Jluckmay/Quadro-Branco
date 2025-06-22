@@ -831,7 +831,7 @@ class WhiteboardApp {
         return newObject;
     }
 
-    rredrawCanvas() {
+    redrawCanvas() {
     this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
     const objects = this.state.getObjects();
 
