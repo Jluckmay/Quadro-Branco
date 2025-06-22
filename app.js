@@ -11,19 +11,6 @@ class WhiteboardState {
         this.redoHistory = [];
         this.undoHistory = [];
         return this.objects.length - 1;
-    }class WhiteboardState {
-    constructor() {
-        this.objects = [];
-        this.undoHistory = [];
-        this.redoHistory = [];
-        this.actionHistory = [];
-    }
-
-    addObject(obj) {
-        this.objects.push(obj);
-        this.redoHistory = [];
-        this.undoHistory = [];
-        return this.objects.length - 1;
     }
 
     removeObject(index) {
