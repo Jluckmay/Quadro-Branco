@@ -11,7 +11,1391 @@ class WhiteboardState {
         this.redoHistory = [];
         this.undoHistory = [];
         return this.objects.length - 1;
+    }class WhiteboardState {
+    constructor() {
+        this.objects = [];
+        this.undoHistory = [];
+        this.redoHistory = [];
+        this.actionHistory = [];
     }
+
+    addObject(obj) {
+        this.objects.push(obj);
+        this.redoHistory = [];
+        this.undoHistory = [];
+        return this.objects.length - 1;
+    }
+
+    removeObject(index) {
+        const removedObject = this.objects.splice(index, 1)[0];
+        this.redoHistory = [];
+        this.undoHistory = [];
+        return removedObject;
+    }
+
+    undo() {
+        if (this.objects.length > 0) {
+            const removedObject = this.objects.pop();
+            this.undoHistory.push(removedObject);
+            this.redoHistory.push(removedObject);
+            return removedObject;
+        }
+        return null;
+    }
+
+    redo() {
+        if (this.redoHistory.length > 0) {
+            const redoObject = this.redoHistory.pop();
+            this.objects.push(redoObject);
+            return redoObject;
+        }
+        return null;
+    }
+
+    getObjects() {
+        return this.objects;
+    }
+
+    recordAction(action) {
+        this.actionHistory.push(action);
+        this.redoHistory = [];
+        this.undoHistory = [];
+    }
+
+    undoLastAction() {
+        if (this.actionHistory.length === 0) return null;
+
+        const lastAction = this.actionHistory.pop();
+        return lastAction;
+    }
+}
+
+class WhiteboardApp {
+    constructor(usuarioEmail) {
+        this.usuarioEmail = usuarioEmail;
+
+        this.canvas = document.getElementById('whiteboard');
+        this.ctx = this.canvas.getContext('2d');
+        this.colorPicker = document.getElementById('color-picker');
+
+        this.state = new WhiteboardState();
+
+        this.currentTool = 'pencil';
+        this.isDrawing = false;
+
+        this.selectedObjects = [];
+
+        this.currentColor = '#000000';
+        this.currentObject = null;
+        this.startX = 0;
+        this.startY = 0;
+
+        this.isDraggingObject = false;
+        this.dragOffsetX = 0;
+        this.dragOffsetY = 0;
+
+        this.selectionColor = 'rgba(0, 123, 255, 0.3)';
+
+        this.room = null;
+        this.socket = null;
+
+        this.initializeCanvas();
+        this.setupEventListeners();
+        this.setupMultiplayer();
+        this.setupLocalDrawingSync();
+        this.connectWebSocket();
+    }
+
+    setupEventListeners() {
+        this.canvas.addEventListener('mousedown', (e) => this.startDrawing(e));
+        this.canvas.addEventListener('mousemove', (e) => {
+            if (this.isDrawing) this.draw(e);
+            if (this.isDraggingObject) this.dragSelectedObject(e);
+        });
+        this.canvas.addEventListener('mouseup', (e) => {
+            this.stopDrawing(e);
+            this.stopDraggingObject(e);
+        });
+        this.canvas.addEventListener('mouseleave', (e) => {
+            this.stopDrawing(e);
+            this.stopDraggingObject(e);
+        });
+
+        this.colorPicker.addEventListener('input', (e) => {
+            this.currentColor = e.target.value;
+        });
+    }
+
+    initializeCanvas() {
+        this.canvas.width = window.innerWidth;
+        this.canvas.height = window.innerHeight;
+        this.redrawCanvas();
+    }
+
+    redrawCanvas() {
+        this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+        this.state.getObjects().forEach(obj => this.drawObject(obj));
+    }
+
+    drawObject(obj) {
+        if (obj && obj.x !== undefined && obj.y !== undefined) {
+            this.ctx.fillStyle = obj.color || this.currentColor;
+            this.ctx.beginPath();
+            this.ctx.arc(obj.x, obj.y, 3, 0, 2 * Math.PI);
+            this.ctx.fill();
+        }
+    }
+
+
+        const originalRemoveObject = this.state.removeObject.bind(this.state);
+        this.state.removeObject = (index) => {
+            const removedObject = originalRemoveObject(index);
+            if (this.room) {
+                this.room.updateRoomState({ [`object_${index}`]: null });
+            }
+            if (this.socket && this.socket.readyState === WebSocket.OPEN) {
+                this.socket.send(JSON.stringify({
+                    usuario: this.usuarioEmail,
+                    tipo: "desenho",
+                    acao: "remover_objeto",
+                    conteudo: { index }
+                }));
+            }
+            return removedObject;
+        };
+
+        const originalRecordAction = this.state.recordAction?.bind(this.state);
+        this.state.recordAction = (action) => {
+            if (originalRecordAction) originalRecordAction(action);
+            if (action.type === "move") {
+                if (this.socket && this.socket.readyState === WebSocket.OPEN) {
+                    this.selectedObjects.forEach(obj => {
+                        const index = this.state.objects.indexOf(obj);
+                        const localObj = this.state.objects[index];
+                        if (index !== -1 && localObj.version === obj.version) {
+                            obj.version = (obj.version || 0) + 1;
+                            this.socket.send(JSON.stringify({
+                                usuario: this.usuarioEmail,
+                                tipo: "desenho",
+                                acao: "mover_objeto",
+                                conteudo: { index, objeto: obj }
+                            }));
+                        } else {
+                            alert("⚠️ Conflito de versão detectado. Atualize o canvas.");
+                        }
+                    });
+                }
+            }
+        };
+
+        this.undo = () => {
+            if (this.state.undo) this.state.undo();
+            if (this.socket && this.socket.readyState === WebSocket.OPEN) {
+                this.socket.send(JSON.stringify({
+                    usuario: this.usuarioEmail,
+                    tipo: "desenho",
+                    acao: "undo",
+                    conteudo: this.state.getObjects()
+                }));
+            }
+        };
+
+        this.redo = () => {
+            if (this.state.redo) this.state.redo();
+            if (this.socket && this.socket.readyState === WebSocket.OPEN) {
+                this.socket.send(JSON.stringify({
+                    usuario: this.usuarioEmail,
+                    tipo: "desenho",
+                    acao: "redo",
+                    conteudo: this.state.getObjects()
+                }));
+            }
+        };
+
+        document.getElementById('delete-tool').addEventListener('click', () => {
+            const allObjects = this.state.getObjects();
+            if (allObjects.length > 0) {
+                this.state.recordAction({
+                    type: 'delete',
+                    objects: [...allObjects]
+                });
+                this.state.objects = [];
+                this.state.undoHistory = [];
+                this.state.redoHistory = [];
+                this.redrawCanvas();
+                if (this.socket && this.socket.readyState === WebSocket.OPEN) {
+                    this.socket.send(JSON.stringify({
+                        usuario: this.usuarioEmail,
+                        tipo: "desenho",
+                        acao: "resetar",
+                        conteudo: []
+                    }));
+                }
+            }
+        });
+    }
+
+
+    selectTool(tool) {
+        document.querySelectorAll('.tool-btn').forEach(btn => {
+            btn.classList.remove('active');
+        });
+
+        document.querySelector(`[data-tool="${tool}"]`).classList.add('active');
+
+        this.currentTool = tool;
+        this.selectedObjects = [];
+    }
+
+    startDrawing(e) {
+        this.isDrawing = true;
+        const rect = this.canvas.getBoundingClientRect();
+        this.startX = e.clientX - rect.left;
+        this.startY = e.clientY - rect.top;
+
+        switch (this.currentTool) {
+            case 'pencil':
+                this.ctx.beginPath();
+                this.ctx.moveTo(this.startX, this.startY);
+                this.currentObject = {
+                    type: 'pencil',
+                    points: [{ x: this.startX, y: this.startY }],
+                    color: this.currentColor
+                };
+                break;
+            case 'rect':
+            case 'circle':
+            case 'line':
+            case 'star':
+            case 'arrow':
+            case 'polygon':
+                this.currentObject = {
+                    type: this.currentTool,
+                    startX: this.startX,
+                    startY: this.startY,
+                    color: this.currentColor
+                };
+                break;
+            case 'text':
+                const text = prompt('Enter text:');
+                if (text) {
+                    this.drawText(text, this.startX, this.startY);
+                }
+                break;
+            case 'delete':
+                this.handleDeletion(e);
+                break;
+            case 'move':
+                this.handleObjectSelection(e);
+                break;
+        }
+    }
+
+    draw(e) {
+        if (!this.isDrawing) return;
+
+        const rect = this.canvas.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+
+        this.ctx.strokeStyle = this.currentColor;
+        this.ctx.fillStyle = this.currentColor;
+
+        switch (this.currentTool) {
+            case 'eraser':
+                this.objects = this.state.getObjects().filter(obj => {
+                    switch (obj.type) {
+                        case 'text':
+                            return !this.isPointNearText(x, y, obj, 20);
+                        case 'rect':
+                            return !this.isPointNearRect(x, y, obj, 20);
+                        case 'circle':
+                            return !this.isPointNearCircle(x, y, obj, 20);
+                        case 'pencil':
+                            return !this.isPointNearPencilPath(x, y, obj, 20);
+                        default:
+                            return true;
+                    }
+                });
+                this.redrawCanvas();
+                break;
+            case 'pencil':
+                this.ctx.lineTo(x, y);
+                this.ctx.lineWidth = 2;
+                this.ctx.lineCap = 'round';
+                this.ctx.stroke();
+                this.currentObject.points.push({ x, y });
+                break;
+            case 'rect':
+                this.redrawCanvas();
+                this.ctx.beginPath();
+                this.ctx.strokeStyle = this.currentColor;
+                this.ctx.strokeRect(
+                    Math.min(this.startX, x),
+                    Math.min(this.startY, y),
+                    Math.abs(x - this.startX),
+                    Math.abs(y - this.startY)
+                );
+                break;
+            case 'circle':
+                this.redrawCanvas();
+                const radius = Math.sqrt(
+                    Math.pow(x - this.startX, 2) +
+                    Math.pow(y - this.startY, 2)
+                );
+                this.ctx.beginPath();
+                this.ctx.strokeStyle = this.currentColor;
+                this.ctx.arc(this.startX, this.startY, radius, 0, 2 * Math.PI);
+                this.ctx.stroke();
+                break;
+            case 'line':
+            case 'star':
+            case 'arrow':
+            case 'polygon':
+                this.redrawCanvas();
+                const newObject = this.drawGeometricShape(this.currentTool, this.startX, this.startY, x, y);
+                this.currentObject = newObject;
+                break;
+        }
+    }
+
+    stopDrawing(e) {
+        if (!this.isDrawing) return;
+
+        this.isDrawing = false;
+
+        switch (this.currentTool) {
+            case 'pencil':
+                if (this.currentObject && this.currentObject.points.length > 1) {
+                    const index = this.state.addObject(this.currentObject);
+                    this.state.recordAction({
+                        type: 'add',
+                        objectIndex: index
+                    });
+                }
+                break;
+            case 'rect':
+                const rect = this.canvas.getBoundingClientRect();
+                const x = e.clientX - rect.left;
+                const y = e.clientY - rect.top;
+
+                const newObject = {
+                    type: 'rect',
+                    startX: this.startX,
+                    startY: this.startY,
+                    endX: x,
+                    endY: y,
+                    color: this.currentColor
+                };
+                const index = this.state.addObject(newObject);
+                this.state.recordAction({
+                    type: 'add',
+                    objectIndex: index
+                });
+                break;
+            case 'circle':
+                const circleRect = this.canvas.getBoundingClientRect();
+                const circleX = e.clientX - circleRect.left;
+                const circleY = e.clientY - circleRect.top;
+
+                const newCircleObject = {
+                    type: 'circle',
+                    startX: this.startX,
+                    startY: this.startY,
+                    endX: circleX,
+                    endY: circleY,
+                    color: this.currentColor
+                };
+                const circleIndex = this.state.addObject(newCircleObject);
+                this.state.recordAction({
+                    type: 'add',
+                    objectIndex: circleIndex
+                });
+                break;
+            case 'line':
+            case 'star':
+            case 'arrow':
+            case 'polygon':
+                if (this.currentObject) {
+                    const index = this.state.addObject(this.currentObject);
+                    this.state.recordAction({
+                        type: 'add',
+                        objectIndex: index
+                    });
+                }
+                break;
+            case 'text':
+                break;
+        }
+
+        this.currentObject = null;
+        this.redrawCanvas();
+    }
+
+    drawText(text, x, y) {
+        const textObject = {
+            type: 'text',
+            text: text,
+            x: x,
+            y: y,
+            color: this.currentColor,
+            width: 0,
+            height: 16
+        };
+
+        this.state.addObject(textObject);
+        this.redrawCanvas();
+    }
+
+    undo() {
+        const lastAction = this.state.undoLastAction();
+
+        if (lastAction) {
+            switch (lastAction.type) {
+                case 'add':
+                    if (this.state.objects.length > 0) {
+                        this.state.undo();
+                    }
+                    break;
+                case 'delete':
+                    if (lastAction.objects) {
+                        lastAction.objects.forEach(obj => {
+                            this.state.objects.push(obj);
+                        });
+                    }
+                    break;
+                case 'move':
+                    if (lastAction.originalPositions) {
+                        lastAction.originalPositions.forEach((originalPos, index) => {
+                            const obj = this.state.objects[index];
+                            if (obj) {
+                                switch (obj.type) {
+                                    case 'text':
+                                        obj.x = originalPos.x;
+                                        obj.y = originalPos.y;
+                                        break;
+                                    case 'rect':
+                                    case 'circle':
+                                        obj.startX = originalPos.startX;
+                                        obj.startY = originalPos.startY;
+                                        obj.endX = originalPos.endX;
+                                        obj.endY = originalPos.endY;
+                                        break;
+                                    case 'pencil':
+                                        obj.points = originalPos.points;
+                                        break;
+                                    case 'line':
+                                    case 'star':
+                                    case 'arrow':
+                                    case 'polygon':
+                                        obj.startX = originalPos.startX;
+                                        obj.startY = originalPos.startY;
+                                        obj.endX = originalPos.endX;
+                                        obj.endY = originalPos.endY;
+                                        break;
+                                }
+                            }
+                        });
+                    }
+                    break;
+            }
+
+            this.redrawCanvas();
+        }
+    }
+
+    redo() {
+        const redoObject = this.state.redo();
+        if (redoObject) {
+            this.redrawCanvas();
+        }
+    }
+
+    handleDeletion(e) {
+        const rect = this.canvas.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+
+        if (this.currentTool === 'delete') {
+            // Clear everything on the board
+            const allObjects = this.state.getObjects();
+            if (allObjects.length > 0) {
+                this.state.recordAction({
+                    type: 'delete',
+                    objects: [...allObjects]
+                });
+
+                // Clear the state completely
+                this.state.objects = [];
+                this.state.undoHistory = [];
+                this.state.redoHistory = [];
+            }
+
+            this.redrawCanvas();
+            return;
+        }
+
+        // Existing point-based deletion logic
+        const erasedObjects = [];
+
+        const objects = this.state.getObjects();
+        for (let i = objects.length - 1; i >= 0; i--) {
+            const obj = objects[i];
+            if (this.isObjectNearPoint(x, y, obj, 20)) {
+                erasedObjects.push(obj);
+                this.state.removeObject(i);
+            }
+        }
+
+        if (erasedObjects.length > 0) {
+            this.state.recordAction({
+                type: 'delete',
+                objects: erasedObjects
+            });
+        }
+
+        this.redrawCanvas();
+    }
+
+    isObjectNearPoint(x, y, obj, threshold = 10) {
+        switch (obj.type) {
+            case 'text':
+                return this.isPointNearText(x, y, obj, threshold);
+            case 'rect':
+                return this.isPointNearRect(x, y, obj, threshold);
+            case 'circle':
+                return this.isPointNearCircle(x, y, obj, threshold);
+            case 'pencil':
+                return this.isPointNearPencilPath(x, y, obj, threshold);
+            case 'line':
+                return this.isPointNearLine(x, y, obj, threshold);
+            case 'star':
+                return this.isPointNearStar(x, y, obj, threshold);
+            case 'arrow':
+                return this.isPointNearArrow(x, y, obj, threshold);
+            case 'polygon':
+                return this.isPointNearPolygon(x, y, obj, threshold);
+            default:
+                return false;
+        }
+    }
+
+    isPointNearText(x, y, textObj, threshold = 10) {
+        return (
+            x >= textObj.x - threshold &&
+            x <= textObj.x + textObj.width + threshold &&
+            y >= textObj.y - textObj.height - threshold &&
+            y <= textObj.y + threshold
+        );
+    }
+
+    isPointNearRect(x, y, rectObj, threshold = 10) {
+        const minX = Math.min(rectObj.startX, rectObj.endX);
+        const maxX = Math.max(rectObj.startX, rectObj.endX);
+        const minY = Math.min(rectObj.startY, rectObj.endY);
+        const maxY = Math.max(rectObj.startY, rectObj.endY);
+
+        return (x >= minX - threshold && x <= maxX + threshold &&
+            y >= minY - threshold && y <= maxY + threshold);
+    }
+
+    isPointNearCircle(x, y, circleObj, threshold = 10) {
+        const centerX = circleObj.startX;
+        const centerY = circleObj.startY;
+        const radius = Math.sqrt(
+            Math.pow(circleObj.endX - centerX, 2) +
+            Math.pow(circleObj.endY - centerY, 2)
+        );
+
+        const distanceFromCenter = Math.sqrt(
+            Math.pow(x - centerX, 2) +
+            Math.pow(y - centerY, 2)
+        );
+
+        return Math.abs(distanceFromCenter - radius) <= threshold;
+    }
+
+    isPointNearPencilPath(x, y, pencilObj, threshold = 10) {
+        return pencilObj.points.some(point =>
+            Math.abs(x - point.x) < threshold &&
+            Math.abs(y - point.y) < threshold
+        );
+    }
+
+    isPointNearLine(x, y, lineObj, threshold = 10) {
+        const minX = Math.min(lineObj.startX, lineObj.endX);
+        const maxX = Math.max(lineObj.startX, lineObj.endX);
+        const minY = Math.min(lineObj.startY, lineObj.endY);
+        const maxY = Math.max(lineObj.startY, lineObj.endY);
+
+        return (x >= minX - threshold && x <= maxX + threshold &&
+            y >= minY - threshold && y <= maxY + threshold);
+    }
+
+    isPointNearStar(x, y, starObj, threshold = 10) {
+        const centerX = starObj.centerX;
+        const centerY = starObj.centerY;
+        const radius = starObj.size;
+
+        const distanceFromCenter = Math.sqrt(
+            Math.pow(x - centerX, 2) +
+            Math.pow(y - centerY, 2)
+        );
+
+        return Math.abs(distanceFromCenter - radius) <= threshold;
+    }
+
+    isPointNearArrow(x, y, arrowObj, threshold = 10) {
+        const minX = Math.min(arrowObj.startX, arrowObj.endX);
+        const maxX = Math.max(arrowObj.startX, arrowObj.endX);
+        const minY = Math.min(arrowObj.startY, arrowObj.endY);
+        const maxY = Math.max(arrowObj.startY, arrowObj.endY);
+
+        return (x >= minX - threshold && x <= maxX + threshold &&
+            y >= minY - threshold && y <= maxY + threshold);
+    }
+
+    isPointNearPolygon(x, y, polygonObj, threshold = 10) {
+        const centerX = polygonObj.centerX;
+        const centerY = polygonObj.centerY;
+        const radius = polygonObj.radius;
+
+        const distanceFromCenter = Math.sqrt(
+            Math.pow(x - centerX, 2) +
+            Math.pow(y - centerY, 2)
+        );
+
+        return Math.abs(distanceFromCenter - radius) <= threshold;
+    }
+
+    handleObjectSelection(e) {
+        const rect = this.canvas.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+
+        this.selectedObjects = [];
+
+        this.state.getObjects().forEach(obj => {
+            let isSelected = false;
+            switch (obj.type) {
+                case 'text':
+                    isSelected = this.isPointNearText(x, y, obj);
+                    break;
+                case 'rect':
+                    isSelected = this.isPointNearRect(x, y, obj);
+                    break;
+                case 'circle':
+                    isSelected = this.isPointNearCircle(x, y, obj);
+                    break;
+                case 'pencil':
+                    isSelected = this.isPointNearPencilPath(x, y, obj);
+                    break;
+                case 'line':
+                    isSelected = this.isPointNearLine(x, y, obj);
+                    break;
+                case 'star':
+                    isSelected = this.isPointNearStar(x, y, obj);
+                    break;
+                case 'arrow':
+                    isSelected = this.isPointNearArrow(x, y, obj);
+                    break;
+                case 'polygon':
+                    isSelected = this.isPointNearPolygon(x, y, obj);
+                    break;
+            }
+
+            if (isSelected) {
+                this.selectedObjects.push(obj);
+            }
+        });
+
+        if (this.selectedObjects.length > 0) {
+            this.isDraggingObject = true;
+
+            const firstObj = this.selectedObjects[0];
+
+            switch (firstObj.type) {
+                case 'text':
+                    this.dragOffsetX = x - firstObj.x;
+                    this.dragOffsetY = y - firstObj.y;
+                    break;
+                case 'rect':
+                case 'circle':
+                case 'line':
+                case 'star':
+                case 'arrow':
+                case 'polygon':
+                    this.dragOffsetX = x - Math.min(firstObj.startX, firstObj.endX);
+                    this.dragOffsetY = y - Math.min(firstObj.startY, firstObj.endY);
+                    break;
+                case 'pencil':
+                    this.dragOffsetX = x - firstObj.points[0].x;
+                    this.dragOffsetY = y - firstObj.points[0].y;
+                    break;
+            }
+
+            this.redrawCanvas();
+        }
+    }
+
+    dragSelectedObject(e) {
+        if (!this.isDraggingObject || this.selectedObjects.length === 0) return;
+
+        const originalPositions = this.selectedObjects.map(obj => {
+            switch (obj.type) {
+                case 'text':
+                    return { x: obj.x, y: obj.y };
+                case 'rect':
+                case 'circle':
+                case 'line':
+                case 'star':
+                case 'arrow':
+                case 'polygon':
+                    return {
+                        startX: obj.startX,
+                        startY: obj.startY,
+                        endX: obj.endX,
+                        endY: obj.endY
+                    };
+                case 'pencil':
+                    return { points: [...obj.points] };
+            }
+        });
+
+        const rect = this.canvas.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+
+        this.selectedObjects.forEach(obj => {
+            switch (obj.type) {
+                case 'text':
+                    obj.x = x - this.dragOffsetX;
+                    obj.y = y - this.dragOffsetY;
+                    break;
+                case 'rect':
+                case 'circle':
+                case 'line':
+                case 'star':
+                case 'arrow':
+                case 'polygon':
+                    const deltaX = x - this.dragOffsetX - Math.min(obj.startX, obj.endX);
+                    const deltaY = y - this.dragOffsetY - Math.min(obj.startY, obj.endY);
+                    obj.startX += deltaX;
+                    obj.startY += deltaY;
+                    obj.endX += deltaX;
+                    obj.endY += deltaY;
+                    break;
+                case 'pencil':
+                    const firstPointDeltaX = x - this.dragOffsetX - obj.points[0].x;
+                    const firstPointDeltaY = y - this.dragOffsetY - obj.points[0].y;
+
+                    obj.points = obj.points.map(point => ({
+                        x: point.x + firstPointDeltaX,
+                        y: point.y + firstPointDeltaY
+                    }));
+                    break;
+            }
+        });
+
+        this.state.recordAction({
+            type: 'move',
+            originalPositions: originalPositions
+        });
+
+        this.redrawCanvas();
+    }
+
+    stopDraggingObject(e) {
+        this.isDraggingObject = false;
+        this.selectedObjects = [];
+        this.redrawCanvas();
+    }
+
+    drawGeometricShape(type, startX, startY, endX, endY) {
+        let newObject = null;
+        switch (type) {
+            case 'line':
+                GeometricShapes.drawLine(this.ctx, startX, startY, endX, endY, this.currentColor);
+                newObject = {
+                    type: 'line',
+                    startX: startX,
+                    startY: startY,
+                    endX: endX,
+                    endY: endY,
+                    color: this.currentColor
+                };
+                break;
+            case 'star':
+                const size = Math.sqrt(
+                    Math.pow(endX - startX, 2) +
+                    Math.pow(endY - startY, 2)
+                );
+                GeometricShapes.drawStar(this.ctx, startX, startY, size, this.currentColor);
+                newObject = {
+                    type: 'star',
+                    centerX: startX,
+                    centerY: startY,
+                    size: size,
+                    color: this.currentColor
+                };
+                break;
+            case 'arrow':
+                // Calculate arrow head orientation based on line direction
+                const angle = Math.atan2(endY - startY, endX - startX);
+                const headLength = Math.sqrt(
+                    Math.pow(endX - startX, 2) +
+                    Math.pow(endY - startY, 2)
+                ) * 0.2; // Arrow head length proportional to arrow length
+
+                GeometricShapes.drawArrow(this.ctx, startX, startY, endX, endY, this.currentColor, angle, headLength);
+                newObject = {
+                    type: 'arrow',
+                    startX: startX,
+                    startY: startY,
+                    endX: endX,
+                    endY: endY,
+                    color: this.currentColor,
+                    angle: angle,
+                    headLength: headLength
+                };
+                break;
+            case 'polygon':
+                const radius = Math.sqrt(
+                    Math.pow(endX - startX, 2) +
+                    Math.pow(endY - startY, 2)
+                );
+                const sides = 6; // Default hexagon, could be made configurable
+                GeometricShapes.drawPolygon(this.ctx, startX, startY, sides, radius, this.currentColor);
+                newObject = {
+                    type: 'polygon',
+                    centerX: startX,
+                    centerY: startY,
+                    sides: sides,
+                    radius: radius,
+                    color: this.currentColor
+                };
+                break;
+        }
+        return newObject;
+    }
+
+    redrawCanvas() {
+        this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+
+        const objects = this.state.getObjects();
+        objects.forEach(obj => {
+            this.ctx.strokeStyle = obj.color;
+            this.ctx.fillStyle = obj.color;
+
+            const isSelected = this.selectedObjects.includes(obj);
+
+            switch (obj.type) {
+                case 'pencil':
+                    if (obj.points.length > 1) {
+                        this.ctx.beginPath();
+                        this.ctx.moveTo(obj.points[0].x, obj.points[0].y);
+                        obj.points.slice(1).forEach(point => {
+                            this.ctx.lineTo(point.x, point.y);
+                        });
+                        this.ctx.lineWidth = 2;
+                        this.ctx.lineCap = 'round';
+                        this.ctx.stroke();
+
+                        if (isSelected) {
+                            this.drawSelectionHighlight(obj.points);
+                        }
+                    }
+                    break;
+                case 'rect':
+                    if (isSelected) {
+                        this.ctx.fillStyle = this.selectionColor;
+                        this.ctx.fillRect(
+                            Math.min(obj.startX, obj.endX),
+                            Math.min(obj.startY, obj.endY),
+                            Math.abs(obj.endX - obj.startX),
+                            Math.abs(obj.endY - obj.startY)
+                        );
+                    }
+
+                    this.ctx.strokeRect(
+                        Math.min(obj.startX, obj.endX),
+                        Math.min(obj.startY, obj.endY),
+                        Math.abs(obj.endX - obj.startX),
+                        Math.abs(obj.endY - obj.startY)
+                    );
+                    break;
+                case 'circle':
+                    const radius = Math.sqrt(
+                        Math.pow(obj.endX - obj.startX, 2) +
+                        Math.pow(obj.endY - obj.startY, 2)
+                    );
+
+                    if (isSelected) {
+                        this.ctx.beginPath();
+                        this.ctx.fillStyle = this.selectionColor;
+                        this.ctx.arc(obj.startX, obj.startY, radius, 0, 2 * Math.PI);
+                        this.ctx.fill();
+                    }
+
+                    this.ctx.beginPath();
+                    this.ctx.arc(obj.startX, obj.startY, radius, 0, 2 * Math.PI);
+                    this.ctx.stroke();
+                    break;
+                case 'text':
+                    this.ctx.font = '16px Arial';
+
+                    const metrics = this.ctx.measureText(obj.text);
+                    obj.width = metrics.width;
+
+                    this.ctx.fillText(obj.text, obj.x, obj.y);
+
+                    if (isSelected) {
+                        this.ctx.fillStyle = this.selectionColor;
+                        this.ctx.fillRect(
+                            obj.x,
+                            obj.y - obj.height,
+                            obj.width,
+                            obj.height
+                        );
+
+                        this.ctx.fillStyle = obj.color;
+                        this.ctx.fillText(obj.text, obj.x, obj.y);
+                    }
+                    break;
+                case 'line':
+                    if (isSelected) {
+                        this.ctx.fillStyle = this.selectionColor;
+                        this.ctx.beginPath();
+                        this.ctx.moveTo(obj.startX, obj.startY);
+                        this.ctx.lineTo(obj.endX, obj.endY);
+                        this.ctx.lineTo((obj.startX + obj.endX) / 2, (obj.startY + obj.endY) / 2);
+                        this.ctx.fill();
+                    }
+                    this.ctx.beginPath();
+                    this.ctx.moveTo(obj.startX, obj.startY);
+                    this.ctx.lineTo(obj.endX, obj.endY);
+                    this.ctx.lineTo((obj.startX + obj.endX) / 2, (obj.startY + obj.endY) / 2);
+                    this.ctx.closePath();
+                    this.ctx.stroke();
+                    break;
+                case 'star':
+                    const size = obj.size;
+                    if (isSelected) {
+                        this.ctx.beginPath();
+                        this.ctx.fillStyle = this.selectionColor;
+                        const outerRadius = size;
+                        const innerRadius = size / 2;
+                        const points = 5;
+                        for (let i = 0; i < points * 2; i++) {
+                            const angle = (i * Math.PI) / points - Math.PI / 2;
+                            const radius = i % 2 === 0 ? outerRadius : innerRadius;
+                            if (i === 0) {
+                                this.ctx.moveTo(obj.centerX + radius * Math.cos(angle), obj.centerY + radius * Math.sin(angle));
+                            } else {
+                                this.ctx.lineTo(obj.centerX + radius * Math.cos(angle), obj.centerY + radius * Math.sin(angle));
+                            }
+                        }
+                        this.ctx.fill();
+                    }
+                    this.ctx.beginPath();
+                    const outerRadius = size;
+                    const innerRadius = size / 2;
+                    const points = 5;
+                    for (let i = 0; i < points * 2; i++) {
+                        const angle = (i * Math.PI) / points - Math.PI / 2;
+                        const radius = i % 2 === 0 ? outerRadius : innerRadius;
+                        if (i === 0) {
+                            this.ctx.moveTo(obj.centerX + radius * Math.cos(angle), obj.centerY + radius * Math.sin(angle));
+                        } else {
+                            this.ctx.lineTo(obj.centerX + radius * Math.cos(angle), obj.centerY + radius * Math.sin(angle));
+                        }
+                    }
+                    this.ctx.closePath();
+                    this.ctx.stroke();
+                    break;
+                case 'arrow':
+                    if (isSelected) {
+                        this.ctx.fillStyle = this.selectionColor;
+                        this.ctx.beginPath();
+                        this.ctx.moveTo(obj.startX, obj.startY);
+                        this.ctx.lineTo(obj.endX, obj.endY);
+                        this.ctx.stroke();
+                    }
+
+                    // Draw arrow with stored angle and head length
+                    GeometricShapes.drawArrow(
+                        this.ctx,
+                        obj.startX,
+                        obj.startY,
+                        obj.endX,
+                        obj.endY,
+                        obj.color,
+                        obj.angle,
+                        obj.headLength
+                    );
+                    break;
+                case 'polygon':
+                    const polygonRadius = obj.radius;
+                    if (isSelected) {
+                        this.ctx.beginPath();
+                        this.ctx.fillStyle = this.selectionColor;
+                        for (let i = 0; i < obj.sides; i++) {
+                            const angle = (i * 2 * Math.PI) / obj.sides;
+                            this.ctx.lineTo(obj.centerX + polygonRadius * Math.cos(angle), obj.centerY + polygonRadius * Math.sin(angle));
+                        }
+                        this.ctx.fill();
+                    }
+                    this.ctx.beginPath();
+                    for (let i = 0; i < obj.sides; i++) {
+                        const angle = (i * 2 * Math.PI) / obj.sides;
+                        this.ctx.lineTo(obj.centerX + polygonRadius * Math.cos(angle), obj.centerY + polygonRadius * Math.sin(angle));
+                    }
+                    this.ctx.closePath();
+                    this.ctx.stroke();
+                    break;
+            }
+        });
+    }
+
+    drawSelectionHighlight(points) {
+        if (points.length < 2) return;
+
+        this.ctx.beginPath();
+        this.ctx.moveTo(points[0].x, points[0].y);
+        points.slice(1).forEach(point => {
+            this.ctx.lineTo(point.x, point.y);
+        });
+
+        this.ctx.lineWidth = 10;
+        this.ctx.lineCap = 'round';
+        this.ctx.strokeStyle = this.selectionColor;
+        this.ctx.stroke();
+    }
+
+    setupMultiplayer() {
+        const joinRoomBtn = document.getElementById('join-room-btn');
+        joinRoomBtn.addEventListener('click', () => this.initializeMultiplayerRoom());
+    }
+
+    async initializeMultiplayerRoom() {
+        const username = document.getElementById('username').value.trim();
+        const roomCode = document.getElementById('room-code').value.trim();
+
+        if (!username || !roomCode) {
+            alert('Please enter both username and room code');
+            return;
+        }
+
+        try {
+            // Initialize WebsimSocket room
+            this.room = new WebsimSocket();
+            await this.room.initialize();
+
+            // Subscribe to room state updates
+            this.room.subscribeRoomState((roomState) => {
+                this.updateCanvasFromRoomState(roomState);
+            });
+
+            // Subscribe to presence updates for other users' actions
+            this.room.subscribePresence((presence) => {
+                this.handleOtherUserPresence(presence);
+            });
+
+            // Setup local drawing synchronization
+            this.setupLocalDrawingSync();
+
+            // Close multiplayer modal
+            const modal = bootstrap.Modal.getInstance(document.getElementById('multiplayer-modal'));
+            modal.hide();
+
+            alert(`Successfully joined room ${roomCode} as ${username}`);
+        } catch (error) {
+            console.error('Multiplayer initialization error:', error);
+            alert('Failed to join multiplayer room. Please try again.');
+        }
+    }
+
+    setupLocalDrawingSync() {
+        // 🔄 Adiciona objeto
+        const originalAddObject = this.state.addObject.bind(this.state);
+        this.state.addObject = (obj) => {
+            const index = originalAddObject(obj);
+
+            if (this.room) {
+                this.room.updateRoomState({
+                    [`object_${index}`]: obj
+                });
+            }
+
+            if (this.socket && this.socket.readyState === WebSocket.OPEN) {
+                this.socket.send(JSON.stringify({
+                    usuario: document.getElementById("auth-email").value,
+                    tipo: "desenho",
+                    acao: "novo_objeto",
+                    conteudo: obj
+                }));
+            }
+
+            return index;
+        };
+
+        // ❌ Remove objeto
+        const originalRemoveObject = this.state.removeObject.bind(this.state);
+        this.state.removeObject = (index) => {
+            const removedObject = originalRemoveObject(index);
+
+            if (this.room) {
+                this.room.updateRoomState({
+                    [`object_${index}`]: null
+                });
+            }
+
+            if (this.socket && this.socket.readyState === WebSocket.OPEN) {
+                this.socket.send(JSON.stringify({
+                    usuario: document.getElementById("auth-email").value,
+                    tipo: "desenho",
+                    acao: "remover_objeto",
+                    conteudo: { index: index }
+                }));
+            }
+
+            return removedObject;
+        };
+
+        // 🧭 Envia movimentação quando ela acontecer (com lock otimista)
+        const originalRecordAction = this.state.recordAction.bind(this.state);
+        this.state.recordAction = (action) => {
+            originalRecordAction(action);
+
+            if (action.type === "move") {
+                if (this.socket && this.socket.readyState === WebSocket.OPEN) {
+                    this.selectedObjects.forEach(obj => {
+                        const index = this.state.objects.indexOf(obj);
+                        const localObj = this.state.objects[index];
+
+                        if (index !== -1 && localObj.version === obj.version) {
+                            obj.version = (obj.version || 0) + 1; // incrementa versão
+
+                            this.socket.send(JSON.stringify({
+                                usuario: document.getElementById("auth-email").value,
+                                tipo: "desenho",
+                                acao: "mover_objeto",
+                                conteudo: { index, objeto: obj }
+                            }));
+                        } else {
+                            alert("⚠️ Conflito de versão detectado. Atualize o canvas.");
+                        }
+                    });
+                }
+            }
+        };
+
+        // 🕐 Undo
+        const originalUndo = this.undo.bind(this);
+        this.undo = () => {
+            originalUndo();
+            if (this.socket && this.socket.readyState === WebSocket.OPEN) {
+                this.socket.send(JSON.stringify({
+                    usuario: document.getElementById("auth-email").value,
+                    tipo: "desenho",
+                    acao: "undo",
+                    conteudo: this.state.getObjects()
+                }));
+            }
+        };
+
+        // 🔁 Redo
+        const originalRedo = this.redo.bind(this);
+        this.redo = () => {
+            originalRedo();
+            if (this.socket && this.socket.readyState === WebSocket.OPEN) {
+                this.socket.send(JSON.stringify({
+                    usuario: document.getElementById("auth-email").value,
+                    tipo: "desenho",
+                    acao: "redo",
+                    conteudo: this.state.getObjects()
+                }));
+            }
+        };
+
+        // 🧹 Botão Clean
+        document.getElementById('delete-tool').addEventListener('click', () => {
+            const allObjects = this.state.getObjects();
+            if (allObjects.length > 0) {
+                this.state.recordAction({
+                    type: 'delete',
+                    objects: [...allObjects]
+                });
+
+                this.state.objects = [];
+                this.state.undoHistory = [];
+                this.state.redoHistory = [];
+
+                this.redrawCanvas();
+
+                if (this.socket && this.socket.readyState === WebSocket.OPEN) {
+                    this.socket.send(JSON.stringify({
+                        usuario: document.getElementById("auth-email").value,
+                        tipo: "desenho",
+                        acao: "resetar",
+                        conteudo: []
+                    }));
+                }
+            }
+        });
+    }
+
+    updateCanvasFromRoomState(roomState) {
+        // Clear current state and rebuild from room state
+        this.state.objects = [];
+
+        // Rebuild objects from room state
+        Object.keys(roomState)
+            .filter(key => key.startsWith('object_'))
+            .forEach(key => {
+                const obj = roomState[key];
+                if (obj) {
+                    this.state.objects.push(obj);
+                }
+            });
+
+        // Redraw canvas
+        this.redrawCanvas();
+    }
+
+    handleOtherUserPresence(presence) {
+        // You can add additional logic to handle other users' presence if needed
+        // For example, showing cursors or tracking active users
+        console.log('Other users presence updated:', presence);
+    }
+
+    joinMultiplayerRoom() {
+        console.warn('Use initializeMultiplayerRoom instead');
+    }
+
+    connectWebSocket() {
+        this.socket = new WebSocket("wss://quadrobranco-ffap.onrender.com/ws/frontend");
+
+        this.socket.onopen = () => {
+            console.log("✅ Conectado ao backend");
+        };
+
+        this.socket.onmessage = (event) => {
+            const data = JSON.parse(event.data);
+            console.log("📥 Mensagem do backend:", data);
+
+            // Trata o estado inicial recebido do backend
+            if (data.tipo === "estado_inicial") {
+                // Substitui todos os objetos atuais pelos recebidos do backend
+                this.state.objects = data.objetos || [];
+                this.redrawCanvas();
+                return; // Não processa mais nada para esta mensagem
+            }
+
+
+            if (data.tipo === "desenho") {
+                switch (data.acao) {
+                    case "novo_objeto":
+                        this.state.objects.push(data.conteudo);
+                        break;
+
+                    case "remover_objeto":
+                        const idx = data.conteudo.index;
+                        if (typeof idx === "number" && idx >= 0 && idx < this.state.objects.length) {
+                            this.state.objects.splice(idx, 1);
+                        }
+                        break;
+
+
+                    case "mover_objeto":
+                        // Substitui objeto antigo pelo novo (simplificado)
+                        const moved = data.conteudo;
+                        if (moved.index >= 0) {
+                            this.state.objects[moved.index] = moved.objeto;
+                        }
+                        break;
+
+                    case "resetar":
+                        this.state.objects = [];
+                        break;
+
+                    case "undo":
+                    case "redo":
+                        // Aqui depende se você envia o objeto atualizado
+                        this.state.objects = data.conteudo;
+                        break;
+                }
+
+                this.redrawCanvas(); // Atualiza o canvas após qualquer mudança
+            }
+
+            this.redrawCanvas();
+        }
+
+    }
+};
+
+
+const GeometricShapes = {
+    drawLine: (ctx, startX, startY, endX, endY, color) => {
+        ctx.beginPath();
+        ctx.moveTo(startX, startY);
+        ctx.lineTo(endX, endY);
+        ctx.lineTo((startX + endX) / 2, (startY + endY) / 2);
+        ctx.closePath();
+        ctx.strokeStyle = color;
+        ctx.stroke();
+    },
+
+    drawStar: (ctx, centerX, centerY, size, color) => {
+        ctx.beginPath();
+        for (let i = 0; i < 5; i++) {
+            const angle = (i * 2 * Math.PI) / 5;
+            const radius = (i % 2 === 0) ? size : size / 2;
+            ctx.lineTo(centerX + radius * Math.cos(angle), centerY + radius * Math.sin(angle));
+        }
+        ctx.closePath();
+        ctx.strokeStyle = color;
+        ctx.stroke();
+    },
+
+    drawArrow: (ctx, startX, startY, endX, endY, color, angle, headLength = 10) => {
+        ctx.beginPath();
+        ctx.moveTo(startX, startY);
+        ctx.lineTo(endX, endY);
+        ctx.strokeStyle = color;
+        ctx.stroke();
+
+        ctx.fillStyle = color;
+        ctx.beginPath();
+        ctx.moveTo(
+            endX - headLength * Math.cos(angle - Math.PI / 6),
+            endY - headLength * Math.sin(angle - Math.PI / 6)
+        );
+        ctx.lineTo(endX, endY);
+        ctx.lineTo(
+            endX - headLength * Math.cos(angle + Math.PI / 6),
+            endY - headLength * Math.sin(angle + Math.PI / 6)
+        );
+        ctx.fill();
+    },
+
+    drawPolygon: (ctx, centerX, centerY, sides, radius, color) => {
+        ctx.beginPath();
+        for (let i = 0; i < sides; i++) {
+            const angle = (i * 2 * Math.PI) / sides;
+            ctx.lineTo(centerX + radius * Math.cos(angle), centerY + radius * Math.sin(angle));
+        }
+        ctx.closePath();
+        ctx.strokeStyle = color;
+        ctx.stroke();
+    }
+};
+
+window.addEventListener('load', () => {
+    const email = localStorage.getItem("usuario_email") || "anonimo@sememail.com";
+    new WhiteboardApp(email);
+});
 
     removeObject(index) {
         const removedObject = this.objects.splice(index, 1)[0];
@@ -1121,29 +2505,7 @@ class WhiteboardApp {
         }
     }
 
-    setupLocalDrawingSync() {
-        // 🔄 Adiciona objeto
-        const originalAddObject = this.state.addObject.bind(this.state);
-        this.state.addObject = (obj) => {
-            const index = originalAddObject(obj);
-
-            if (this.room) {
-                this.room.updateRoomState({
-                    [`object_${index}`]: obj
-                });
-            }
-
-            if (this.socket && this.socket.readyState === WebSocket.OPEN) {
-                this.socket.send(JSON.stringify({
-                    usuario: document.getElementById("auth-email").value,
-                    tipo: "desenho",
-                    acao: "novo_objeto",
-                    conteudo: obj
-                }));
-            }
-
-            return index;
-        };
+    
 
         // ❌ Remove objeto
         const originalRemoveObject = this.state.removeObject.bind(this.state);
