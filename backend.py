@@ -23,16 +23,16 @@ core_ws = None
 async def websocket_frontend(websocket: WebSocket, token: str = Query(None)):
     await websocket.accept()
     
-    #Autenticação JWT
     try:
-    payload = jwt.decode(token, SUPABASE_JWT_SECRET, algorithms=["HS256"])
-    usuario_id = payload.get("sub", "Desconhecido")
-    usuario_email = payload.get("email", "sem_email")
-    print(f"🔌 Frontend conectado: {usuario_email}")
+        payload = jwt.decode(token, SUPABASE_JWT_SECRET, algorithms=["HS256"])
+        usuario_id = payload.get("sub", "Desconhecido")
+        usuario_email = payload.get("email", "sem_email")
+        print(f"🔌 Frontend conectado: {usuario_email}")
     except Exception as e:
-    print("❌ Token JWT inválido:", e)
-    await websocket.close()
-    return
+        print("❌ Token JWT inválido:", e)
+        await websocket.close()
+        return
+
     # Ao iniciar a conexão, busca o estado do quadro na tabela "quadro_estado"
     try:
         response = supabase.table("quadro_estado").select("estado").eq("sessão_id", "sessao123").single().execute()
