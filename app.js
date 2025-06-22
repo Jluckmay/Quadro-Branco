@@ -1069,7 +1069,7 @@ class WhiteboardApp {
 
     setupLocalDrawingSync() {
         // 🔄 Adiciona objeto
-        cconst originalAddObject = this.state.addObject.bind(this.state);
+        const originalAddObject = this.state.addObject.bind(this.state);
         this.state.addObject = (obj) => {
             const index = originalAddObject(obj);
             
