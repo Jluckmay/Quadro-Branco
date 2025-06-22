@@ -1283,6 +1283,7 @@ this.socket.onmessage = (event) => {
         };
     }
     ;
+}
 
 GeometricShapes = {
     drawLine: (ctx, startX, startY, endX, endY, color) => {
@@ -1339,7 +1340,7 @@ GeometricShapes = {
         ctx.stroke();
     }
 };
-}
+
 
 window.addEventListener('load', () => {
     new WhiteboardApp();
