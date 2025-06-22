@@ -1320,7 +1320,7 @@ class WhiteboardApp {
 };
 
 
-GeometricShapes = {
+const GeometricShapes = {
     drawLine: (ctx, startX, startY, endX, endY, color) => {
         ctx.beginPath();
         ctx.moveTo(startX, startY);
@@ -1344,7 +1344,6 @@ GeometricShapes = {
     },
 
     drawArrow: (ctx, startX, startY, endX, endY, color, angle, headLength = 10) => {
-
         ctx.beginPath();
         ctx.moveTo(startX, startY);
         ctx.lineTo(endX, endY);
@@ -1375,6 +1374,8 @@ GeometricShapes = {
         ctx.strokeStyle = color;
         ctx.stroke();
     }
+};
+
     setupEventListeners() {}
     setupMultiplayer() {}
     connectWebSocket() {}
