@@ -92,6 +92,25 @@ class WhiteboardApp {
         this.setupLocalDrawingSync();
         this.connectWebSocket();
     }
+        initializeCanvas() {
+        this.canvas.width = window.innerWidth;
+        this.canvas.height = window.innerHeight;
+        this.redrawCanvas();
+    }
+
+    redrawCanvas() {
+        this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+        this.state.getObjects().forEach(obj => this.drawObject(obj));
+    }
+
+    drawObject(obj) {
+        if (obj && obj.x !== undefined && obj.y !== undefined) {
+            this.ctx.fillStyle = obj.color || this.currentColor;
+            this.ctx.beginPath();
+            this.ctx.arc(obj.x, obj.y, 3, 0, 2 * Math.PI);
+            this.ctx.fill();
+        }
+    }
 
     setupLocalDrawingSync() {
         const originalAddObject = this.state.addObject.bind(this.state);
@@ -1357,6 +1376,10 @@ GeometricShapes = {
         ctx.strokeStyle = color;
         ctx.stroke();
     }
+    setupEventListeners() {}
+    setupMultiplayer() {}
+    connectWebSocket() {}
+
 }
 
 window.addEventListener('load', () => {
