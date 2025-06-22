@@ -1085,7 +1085,7 @@ class WhiteboardApp {
                     tipo: "desenho",
                     acao: "novo_objeto",
                     conteudo: obj
-                };
+                }));
                 console.log("📤 Enviando objeto via WebSocket:", msg);
                 this.socket.send(JSON.stringify(msg));
             }
