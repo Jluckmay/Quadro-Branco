@@ -3,6 +3,7 @@ from starlette.websockets import WebSocketState
 import threading
 from core_client import start_connection, atualizar_estado
 from supabase import create_client, Client
+from jose import jwt
 
 SUPABASE_URL = "https://dayvyzxacovefbjgluaq.supabase.co"
 SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRheXZ5enhhY292ZWZiamdsdWFxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDk0MjE0MDAsImV4cCI6MjA2NDk5NzQwMH0.ofuj_A96OXS1eJ7b_F-f0-9AjJtWNX-sS8cavcdIqNY"
@@ -21,7 +22,17 @@ core_ws = None
 @app.websocket("/ws/frontend")
 async def websocket_frontend(websocket: WebSocket, token: str = Query(None)):
     await websocket.accept()
-
+    
+    #Autenticação JWT
+    try:
+    payload = jwt.decode(token, SUPABASE_JWT_SECRET, algorithms=["HS256"])
+    usuario_id = payload.get("sub", "Desconhecido")
+    usuario_email = payload.get("email", "sem_email")
+    print(f"🔌 Frontend conectado: {usuario_email}")
+    except Exception as e:
+    print("❌ Token JWT inválido:", e)
+    await websocket.close()
+    return
     # Ao iniciar a conexão, busca o estado do quadro na tabela "quadro_estado"
     try:
         response = supabase.table("quadro_estado").select("estado").eq("sessão_id", "sessao123").single().execute()
