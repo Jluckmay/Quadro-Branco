@@ -101,43 +101,64 @@ async def websocket_frontend(websocket: WebSocket, token: str = Query(None)):
             print(f"📥 {usuario_email} enviou: {conteudo}")
 
             try:
-                    insert_result = supabase_client.table("objetos").insert({
-                        "usuario_id": usuario_id,
-                        "sessao_id": "sessao123",
-                        "tipo": tipo,
-                        "acao": acao,
-                        "conteudo": json.dumps(conteudo)
-                    }).execute()
+                if tipo == "desenho" and acao == "remover_objeto":
+                    index = conteudo.get("index")
+                    estado_resp = supabase_client.table("quadro_estado").select("estado").eq("sessao_id", "sessao123").limit(1).execute()
+                    if estado_resp.data:
+                        estado_atual = estado_resp.data[0]["estado"]
+                        if isinstance(index, int) and index < len(estado_atual):
+                            objeto_id = estado_atual[index]
+                            supabase_client.table("objetos").delete().eq("id", objeto_id).execute()
+                            novo_estado = estado_atual[:index] + estado_atual[index+1:]
+                            supabase_client.table("quadro_estado").update({
+                                "estado": novo_estado,
+                                "atualizado_em": datetime.datetime.utcnow().isoformat()
+                            }).eq("sessao_id", "sessao123").execute()
+                            print(f"🗑️ Objeto {objeto_id} removido do estado.")
+                    continue
 
-                    if insert_result.data and isinstance(insert_result.data, list):
-                        objeto_id = insert_result.data[0]["id"]
-                        print(f"✅ Objeto salvo com ID: {objeto_id}")
+                elif tipo == "desenho" and acao == "resetar":
+                    supabase_client.table("objetos").delete().eq("sessao_id", "sessao123").execute()
+                    supabase_client.table("quadro_estado").update({
+                        "estado": [],
+                        "atualizado_em": datetime.datetime.utcnow().isoformat()
+                    }).eq("sessao_id", "sessao123").execute()
+                    print("🧹 Quadro resetado.")
+                    continue
 
-                        # Atualiza quadro_estado com o novo ID
-                        estado_resp = supabase_client.table("quadro_estado") \
-                            .select("estado") \
-                            .eq("sessao_id", "sessao123") \
-                            .limit(1) \
-                            .execute()
+                insert_result = supabase_client.table("objetos").insert({
+                    "usuario_id": usuario_id,
+                    "sessao_id": "sessao123",
+                    "tipo": tipo,
+                    "acao": acao,
+                    "conteudo": json.dumps(conteudo)
+                }).execute()
 
-                        estado_atual = estado_resp.data[0]["estado"] if estado_resp.data else []
-                        estado_atual.append(objeto_id)
+                if insert_result.data and isinstance(insert_result.data, list):
+                    objeto_id = insert_result.data[0]["id"]
+                    print(f"✅ Objeto salvo com ID: {objeto_id}")
 
-                        supabase_client.table("quadro_estado").update({
-                            "estado": estado_atual,
-                            "atualizado_em": datetime.datetime.utcnow().isoformat()
-                        }).eq("sessao_id", "sessao123").execute()
-                        print("🆙 Estado atualizado com novo ID.")
+                    estado_resp = supabase_client.table("quadro_estado") \
+                        .select("estado") \
+                        .eq("sessao_id", "sessao123") \
+                        .limit(1) \
+                        .execute()
 
-                    else:
-                        print("⚠️ Inserção não retornou ID.")
+                    estado_atual = estado_resp.data[0]["estado"] if estado_resp.data else []
+                    estado_atual.append(objeto_id)
+
+                    supabase_client.table("quadro_estado").update({
+                        "estado": estado_atual,
+                        "atualizado_em": datetime.datetime.utcnow().isoformat()
+                    }).eq("sessao_id", "sessao123").execute()
+                    print("🆙 Estado atualizado com novo ID.")
+                else:
+                    print("⚠️ Inserção não retornou ID.")
 
             except Exception as e:
-                    print("❌ Erro ao salvar ou atualizar estado no Supabase:", e)
-
+                print("❌ Erro ao salvar ou atualizar estado no Supabase:", e)
 
             continue
-
 
     except Exception as e:
         print(f"⚠️ {usuario_email} desconectado.")
