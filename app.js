@@ -80,6 +80,7 @@ class WhiteboardApp {
         this.dragOffsetY = 0;
 
         this.selectionColor = 'rgba(0, 123, 255, 0.3)';
+        this.usuarioEmail = localStorage.getItem("usuario_email") || "anonimo@sememail.com";
 
         // Multiplayer setup
         this.room = null;
@@ -1103,7 +1104,7 @@ class WhiteboardApp {
 
             if (this.socket && this.socket.readyState === WebSocket.OPEN) {
                 this.socket.send(JSON.stringify({
-                    usuario: document.getElementById("auth-email").value,
+                    usuario: this.usuarioEmail,
                     tipo: "desenho",
                     acao: "remover_objeto",
                     conteudo: { index: index }
@@ -1124,7 +1125,7 @@ class WhiteboardApp {
                         const index = this.state.objects.indexOf(obj);
                         if (index !== -1) {
                             this.socket.send(JSON.stringify({
-                                usuario: document.getElementById("auth-email").value,
+                                usuario: this.usuarioEmail,
                                 tipo: "desenho",
                                 acao: "mover_objeto",
                                 conteudo: { index, objeto: obj }
@@ -1141,7 +1142,7 @@ class WhiteboardApp {
             originalUndo();
             if (this.socket && this.socket.readyState === WebSocket.OPEN) {
                 this.socket.send(JSON.stringify({
-                    usuario: document.getElementById("auth-email").value,
+                    usuario: this.usuarioEmail,
                     tipo: "desenho",
                     acao: "undo",
                     conteudo: this.state.getObjects()
@@ -1155,7 +1156,7 @@ class WhiteboardApp {
             originalRedo();
             if (this.socket && this.socket.readyState === WebSocket.OPEN) {
                 this.socket.send(JSON.stringify({
-                    usuario: document.getElementById("auth-email").value,
+                    usuario: this.usuarioEmail,
                     tipo: "desenho",
                     acao: "redo",
                     conteudo: this.state.getObjects()
@@ -1180,7 +1181,7 @@ class WhiteboardApp {
 
                 if (this.socket && this.socket.readyState === WebSocket.OPEN) {
                     this.socket.send(JSON.stringify({
-                        usuario: document.getElementById("auth-email").value,
+                        usuario: this.usuarioEmail,
                         tipo: "desenho",
                         acao: "resetar",
                         conteudo: []
