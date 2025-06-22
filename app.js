@@ -119,6 +119,9 @@ handleObjectSelection(e) {
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
 
+    this.lastClickX = x;
+    this.lastClickY = y;
+    this.lockRequestPending = null;
     this.selectedObjects = [];
 
     this.state.getObjects().forEach((obj, index) => {
@@ -162,6 +165,7 @@ handleObjectSelection(e) {
 
         if (isSelected) {
             this.selectedObjects.push(obj);
+            this.lockRequestPending = index;
 
             if (this.socket && this.socket.readyState === WebSocket.OPEN) {
                 console.log(`🔒 Solicitando lock para o objeto ${index}`);
@@ -174,62 +178,39 @@ handleObjectSelection(e) {
         }
     });
 
-    if (this.selectedObjects.length > 0) {
-        this.isDraggingObject = true;
-        const firstObj = this.selectedObjects[0];
-
-        switch (firstObj.type) {
-            case 'text':
-                this.dragOffsetX = x - firstObj.x;
-                this.dragOffsetY = y - firstObj.y;
-                break;
-            case 'rect':
-            case 'circle':
-            case 'line':
-            case 'star':
-            case 'arrow':
-            case 'polygon':
-                this.dragOffsetX = x - Math.min(firstObj.startX, firstObj.endX);
-                this.dragOffsetY = y - Math.min(firstObj.startY, firstObj.endY);
-                break;
-            case 'pencil':
-                this.dragOffsetX = x - firstObj.points[0].x;
-                this.dragOffsetY = y - firstObj.points[0].y;
-                break;
-        }
-
-        this.redrawCanvas();
-    }
 }
 
 
-        stopDraggingObject(e) {
-        if (this.socket && this.socket.readyState === WebSocket.OPEN) {
-            this.selectedObjects.forEach(obj => {
-                const index = this.state.objects.indexOf(obj);
-                if (index !== -1) {
-                    // Envia a movimentação ao backend
-                    this.socket.send(JSON.stringify({
-                        usuario: this.usuarioEmail,
-                        tipo: "desenho",
-                        acao: "mover_objeto",
-                        conteudo: { index, objeto: obj }
-                    }));
+stopDraggingObject(e) {
+    if (this.isDraggingObject && this.selectedObjects.length > 0) {
+        const obj = this.selectedObjects[0];
+        const index = this.state.objects.indexOf(obj);
 
-                    // Libera o lock do objeto
-                    this.socket.send(JSON.stringify({
-                        tipo: "lock",
-                        acao: "liberar",
-                        conteudo: { index }
-                    }));
-                }
-            });
+        if (index !== -1 && this.socket && this.socket.readyState === WebSocket.OPEN) {
+            // Envia a movimentação ao backend
+            this.socket.send(JSON.stringify({
+                usuario: this.usuarioEmail,
+                tipo: "desenho",
+                acao: "mover_objeto",
+                conteudo: { index, objeto: obj }
+            }));
+
+            // Libera o lock do objeto
+            this.socket.send(JSON.stringify({
+                tipo: "lock",
+                acao: "liberar",
+                conteudo: { index }
+            }));
+
+            console.log(`✅ Objeto ${index} movido e lock liberado.`);
         }
-
-        this.isDraggingObject = false;
-        this.selectedObjects = [];
-        this.redrawCanvas();
     }
+
+    this.isDraggingObject = false;
+    this.selectedObjects = [];
+    this.redrawCanvas();
+}
+
 
     initializeCanvas() {
         this.resizeCanvas();
@@ -1308,7 +1289,6 @@ this.socket.onmessage = (event) => {
         return;
     }
 
-     
     if (data.tipo === "lock") {
         const { acao, conteudo } = data;
         const index = conteudo.index;
@@ -1317,6 +1297,38 @@ this.socket.onmessage = (event) => {
         if (acao === "adquirido") {
             this.lockedObjects[index] = usuarioId;
             console.log(`🔐 Objeto ${index} bloqueado por ${usuarioId}`);
+
+            // ✅ Inicia arrasto somente se foi o usuário atual que solicitou
+            if (this.lockRequestPending === index && usuarioId === this.usuarioEmail) {
+                const obj = this.state.getObjects()[index];
+                this.selectedObjects = [obj];
+                this.isDraggingObject = true;
+
+                const x = this.lastClickX;
+                const y = this.lastClickY;
+
+                switch (obj.type) {
+                    case 'text':
+                        this.dragOffsetX = x - obj.x;
+                        this.dragOffsetY = y - obj.y;
+                        break;
+                    case 'rect':
+                    case 'circle':
+                    case 'line':
+                    case 'star':
+                    case 'arrow':
+                    case 'polygon':
+                        this.dragOffsetX = x - Math.min(obj.startX, obj.endX);
+                        this.dragOffsetY = y - Math.min(obj.startY, obj.endY);
+                        break;
+                    case 'pencil':
+                        this.dragOffsetX = x - obj.points[0].x;
+                        this.dragOffsetY = y - obj.points[0].y;
+                        break;
+                }
+
+                this.redrawCanvas();
+            }
         } else if (acao === "negado") {
             this.lockedObjects[index] = usuarioId;
             console.warn(`🚫 Não foi possível bloquear o objeto ${index} (já está com ${usuarioId})`);
@@ -1324,10 +1336,10 @@ this.socket.onmessage = (event) => {
             delete this.lockedObjects[index];
             console.log(`🔓 Objeto ${index} liberado`);
         }
+
         return;
     }
 
-    // Trata resetar de forma independente
     if (data.tipo === "resetar") {
         console.log("🧹 Mensagem de reset recebida!");
         this.state.objects = [];
@@ -1335,7 +1347,6 @@ this.socket.onmessage = (event) => {
         return;
     }
 
-    // Trata todas as ações do tipo desenho
     if (data.tipo === "desenho") {
         switch (data.acao) {
             case "novo_objeto":
