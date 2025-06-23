@@ -110,7 +110,6 @@ class WhiteboardApp {
         }
 
 handleObjectSelection(e) {
-    // Evita conflito de clique durante arrasto
     if (this.isDraggingObject) {
         console.log("⚠️ Ignorando clique: já está arrastando um objeto.");
         return;
@@ -129,12 +128,13 @@ handleObjectSelection(e) {
         const lockedBy = this.lockedObjects?.[index];
         const currentUser = this.usuarioEmail;
 
+        // Se o objeto já estiver travado por outro
         if (lockedBy && lockedBy !== currentUser) {
             console.log(`🔒 Objeto ${index} está bloqueado por ${lockedBy}.`);
-            return; // ignora objetos bloqueados por outro usuário
+            return;
         }
 
-        if (this.selectedObjects.length > 0) return; // seleciona apenas o primeiro objeto válido
+        if (this.selectedObjects.length > 0) return; // Seleciona apenas um
 
         let isSelected = false;
         switch (obj.type) {
@@ -165,21 +165,22 @@ handleObjectSelection(e) {
         }
 
         if (isSelected) {
-            this.selectedObjects.push(obj);
+            this.selectedObjects = [obj];
             this.lockRequestPending = index;
 
-            // 🔐 Solicita lock somente após seleção bem-sucedida
+            // Envia pedido de lock ao backend
             if (this.socket && this.socket.readyState === WebSocket.OPEN) {
                 console.log(`🔒 Solicitando lock para o objeto ${index}`);
                 this.socket.send(JSON.stringify({
                     tipo: "lock",
-                    acao: "adquirir",
+                    acao: "solicitar",
                     conteudo: { index }
                 }));
             }
         }
     });
 }
+
 
 
 

@@ -92,12 +92,13 @@ async def websocket_frontend(websocket: WebSocket, token: str = Query(None)):
                         print(f"🔒 Lock adquirido por {usuario_email} no objeto {index}")
 
                         # ✅ Responde ao frontend que o lock foi adquirido
-                        await websocket.send_json({
-                            "tipo": "lock",
-                            "acao": "adquirido",
-                            "conteudo": {"index": index, "usuario_id": usuario_id}
-                        })
-
+                        for cliente in frontends:
+                            if cliente.application_state == WebSocketState.CONNECTED:
+                                await cliente.send_json({
+                                    "tipo": "lock",
+                                    "acao": "adquirido",
+                                    "conteudo": {"index": index, "usuario_id": usuario_id}
+                                })
                         # ✅ Agendamento de liberação automática após 2 segundos
                         async def liberar_lock_automaticamente(index_local, dono_lock, ws_ref):
                             await asyncio.sleep(2)
@@ -105,11 +106,14 @@ async def websocket_frontend(websocket: WebSocket, token: str = Query(None)):
                                 del locks[index_local]
                                 print(f"⏲️ Lock expirado automaticamente no objeto {index_local} (usuário {dono_lock})")
                                 try:
-                                    await ws_ref.send_json({
-                                        "tipo": "lock",
-                                        "acao": "liberado",
-                                        "conteudo": {"index": index_local}
-                                    })
+                                    for cliente in frontends:
+                                        if cliente.application_state == WebSocketState.CONNECTED:
+                                            await cliente.send_json({
+                                                "tipo": "lock",
+                                                "acao": "liberado",
+                                                "conteudo": {"index": index_local}
+                                            })
+
                                 except:
                                     print("⚠️ Não foi possível notificar cliente sobre liberação automática.")
 
@@ -117,11 +121,14 @@ async def websocket_frontend(websocket: WebSocket, token: str = Query(None)):
 
                     else:
                         print(f"❌ Lock negado para {usuario_email} no objeto {index} (já está com {locks.get(index)})")
-                        await websocket.send_json({
-                            "tipo": "lock",
-                            "acao": "negado",
-                            "conteudo": {"index": index, "usuario_id": locks.get(index)}
-                        })
+                        for cliente in frontends:
+                            if cliente.application_state == WebSocketState.CONNECTED:
+                                await cliente.send_json({
+                                    "tipo": "lock",
+                                    "acao": "liberado",
+                                    "conteudo": {"index": index}
+                                })
+
                     continue
                 elif acao == "liberar":
                     if locks.get(index) == usuario_id:
