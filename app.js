@@ -1120,7 +1120,19 @@ dragSelectedObject(e) {
         // 🔄 Adiciona objeto
         const originalAddObject = this.state.addObject.bind(this.state);
         this.state.addObject = (obj) => {
-            const index = originalAddObject(obj);
+            if (this.socket && this.socket.readyState === WebSocket.OPEN) {
+                const msg = {
+                    usuario: this.usuarioEmail,
+                    tipo: "desenho",
+                    acao: "novo_objeto",
+                    conteudo: obj
+                };
+                console.log("📤 Enviando objeto via WebSocket:", msg);
+                this.socket.send(JSON.stringify(msg));
+            }
+
+            // Não adiciona localmente, espera backend confirmar
+            return this.state.objects.length; // só para manter retorno numérico
             
             if (this.room) {
                 this.room.updateRoomState({
