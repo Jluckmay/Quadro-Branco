@@ -175,6 +175,14 @@ async def websocket_frontend(websocket: WebSocket, token: str = Query(None)):
 
                             print(f"📌 Objeto {objeto_id} atualizado com nova posição.")
 
+                            for cliente in frontends:
+                                if cliente.application_state == WebSocketState.CONNECTED and cliente != websocket:
+                                    await cliente.send_json({
+                                        "tipo": tipo,
+                                        "acao": acao,
+                                        "conteudo": conteudo
+                                    })
+
                     except Exception as e:
                         print("❌ Erro ao atualizar posição do objeto:", e)
                     continue
