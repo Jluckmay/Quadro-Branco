@@ -3,40 +3,70 @@ from starlette.websockets import WebSocketState
 import threading
 from core_client import start_connection, atualizar_estado
 from supabase import create_client, Client
+import datetime
+from jose import jwt, JWTError
+import json
+import asyncio
 
 SUPABASE_URL = "https://dayvyzxacovefbjgluaq.supabase.co"
 SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRheXZ5enhhY292ZWZiamdsdWFxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDk0MjE0MDAsImV4cCI6MjA2NDk5NzQwMH0.ofuj_A96OXS1eJ7b_F-f0-9AjJtWNX-sS8cavcdIqNY"
-SUPABASE_JWT_SECRET = "vusfUw2JcrTQ9WJ2b02YWwCw-NNjwmixZAjvMy9Prms"  # apenas o payload com role=service_role
+SUPABASE_JWT_SECRET = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRheXZ5enhhY292ZWZiamdsdWFxIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc0OTQyMTQwMCwiZXhwIjoyMDY0OTk3NDAwfQ.vusfUw2JcrTQ9WJ2b02YWwCw-NNjwmixZAjvMy9Prms"
 
-supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+supabase_client: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 app = FastAPI()
 
-# Banco local em memória
 quadro_dados = {}
-locks = {}  # index: usuario_id
+locks = {}
 frontends = set()
 core_ws = None
-
 
 @app.websocket("/ws/frontend")
 async def websocket_frontend(websocket: WebSocket, token: str = Query(None)):
     await websocket.accept()
 
-    # Ao iniciar a conexão, busca o estado do quadro na tabela "quadro_estado"
     try:
-        response = supabase.table("quadro_estado").select("estado").eq("sessão_id", "sessao123").single().execute()
-        estado = response.data["estado"] if response and response.data and "estado" in response.data else []
-        # estado deve ser uma lista de ids dos objetos presentes no quadro
-        if estado:
-            objetos_response = supabase.table("objetos").select("*").in_("id", estado).execute()
-            objetos = objetos_response.data if hasattr(objetos_response, "data") else objetos_response
+        payload = jwt.get_unverified_claims(token)
+        usuario_id = payload.get("sub", "Desconhecido")
+        usuario_email = payload.get("email", "sem_email")
+        print(f"🔌 Frontend conectado (sem verificação): {usuario_email}")
+    except JWTError as e:
+        print("❌ Erro ao extrair payload do token:", e)
+        await websocket.close()
+        return
+
+    try:
+        response = supabase_client.table("quadro_estado") \
+            .select("estado") \
+            .eq("sessao_id", "sessao123") \
+            .order("atualizado_em", desc=True) \
+            .limit(1) \
+            .execute()
+
+        if not response.data:
+            supabase_client.table("quadro_estado").insert({
+                "sessao_id": "sessao123",
+                "estado": [],
+                "atualizado_em": datetime.datetime.utcnow().isoformat()
+            }).execute()
+            print("🆕 Estado inicial criado em 'quadro_estado'")
+            estado = []
         else:
-            objetos = []
+            estado = response.data[0]["estado"]
+
+        objetos = []
+        if estado:
+            objetos_response = supabase_client.table("objetos") \
+                .select("*") \
+                .in_("id", estado) \
+                .execute()
+            objetos = objetos_response.data if objetos_response and hasattr(objetos_response, "data") else []
+
         await websocket.send_json({
             "tipo": "estado_inicial",
             "objetos": objetos
         })
         print(f"📤 Estado inicial enviado para {websocket.client.host}")
+
     except Exception as e:
         print("❌ Erro ao buscar estado inicial do quadro:", e)
 
@@ -53,119 +83,173 @@ async def websocket_frontend(websocket: WebSocket, token: str = Query(None)):
             acao = data.get("acao")
             conteudo = data.get("conteudo")
 
-            # 🔒 Lógica de LOCK otimista
             if tipo == "lock":
                 index = conteudo.get("index")
                 if acao == "adquirir":
                     if locks.get(index) in [None, usuario_id]:
                         locks[index] = usuario_id
                         print(f"🔒 Lock adquirido por {usuario_email} no objeto {index}")
+
+                        for cliente in frontends:
+                            if cliente.application_state == WebSocketState.CONNECTED:
+                                await cliente.send_json({
+                                    "tipo": "lock",
+                                    "acao": "adquirido",
+                                    "conteudo": {"index": index, "usuario_id": usuario_id}
+                                })
+
+                        async def liberar_lock_automaticamente(index_local, dono_lock, ws_ref):
+                            await asyncio.sleep(2)
+                            if locks.get(index_local) == dono_lock:
+                                del locks[index_local]
+                                print(f"⏲️ Lock expirado automaticamente no objeto {index_local} (usuário {dono_lock})")
+                                for cliente in frontends:
+                                    if cliente.application_state == WebSocketState.CONNECTED:
+                                        await cliente.send_json({
+                                            "tipo": "lock",
+                                            "acao": "liberado",
+                                            "conteudo": {"index": index_local}
+                                        })
+
+                        asyncio.create_task(liberar_lock_automaticamente(index, usuario_id, websocket))
+
                     else:
                         print(f"❌ Lock negado para {usuario_email} no objeto {index} (já está com {locks.get(index)})")
-                        continue  # ignora tentativa
+                        for cliente in frontends:
+                            if cliente.application_state == WebSocketState.CONNECTED:
+                                await cliente.send_json({
+                                    "tipo": "lock",
+                                    "acao": "liberado",
+                                    "conteudo": {"index": index}
+                                })
+
+                    continue
                 elif acao == "liberar":
                     if locks.get(index) == usuario_id:
                         del locks[index]
                         print(f"🔓 Lock liberado por {usuario_email} no objeto {index}")
-                continue  # não prossegue para salvar/broadcast de locks
+                        await websocket.send_json({
+                            "tipo": "lock",
+                            "acao": "liberado",
+                            "conteudo": {"index": index}
+                        })
+                    continue
 
             quadro_dados[usuario_id] = conteudo
             print(f"📥 {usuario_email} enviou: {conteudo}")
 
-            # Salvar no Supabase
             try:
-                supabase.table("objetos").insert({
+                # Salvando movimentação de objeto (mover_objeto)
+                if tipo == "desenho" and acao == "mover_objeto":
+                    objeto_id = None
+                    try:
+                        index = conteudo.get("index")
+                        objeto = conteudo.get("objeto")
+                        
+                        # Atualiza a tabela de objetos no Supabase
+                        if isinstance(index, int) and objeto:
+                            objeto_str = json.dumps(objeto)
+
+                            # Tenta usar o ID enviado pelo frontend (mais confiável)
+                            objeto_id = objeto.get("id")
+
+                            if not objeto_id:
+                                # Se não tiver ID, tenta buscar o estado atual para obter o ID pelo index
+                                estado_resp = supabase_client.table("quadro_estado") \
+                                    .select("estado") \
+                                    .eq("sessao_id", "sessao123") \
+                                    .limit(1) \
+                                    .execute()
+
+                                estado_atual = estado_resp.data[0]["estado"] if estado_resp.data else []
+                                if isinstance(estado_atual, list) and index < len(estado_atual):
+                                    objeto_id = estado_atual[index]
+                                else:
+                                    print("⚠️ Estado corrompido ou índice inválido. Abortando atualização.")
+                                    continue  # não tenta atualizar
+
+                            # Atualiza o conteúdo no banco
+                            supabase_client.table("objetos").update({
+                                "conteudo": objeto_str
+                            }).eq("id", objeto_id).execute()
+
+                            print(f"📌 Objeto {objeto_id} atualizado com nova posição.")
+
+                            for cliente in frontends:
+                                if cliente.application_state == WebSocketState.CONNECTED and cliente != websocket:
+                                    await cliente.send_json({
+                                        "tipo": tipo,
+                                        "acao": acao,
+                                        "conteudo": conteudo
+                                    })
+
+                    except Exception as e:
+                        print("❌ Erro ao atualizar posição do objeto:", e)
+                    continue
+
+
+                insert_result = supabase_client.table("objetos").insert({
                     "usuario_id": usuario_id,
                     "sessao_id": "sessao123",
                     "tipo": tipo,
                     "acao": acao,
-                    "conteudo": conteudo
+                    "conteudo": json.dumps(conteudo)
                 }).execute()
 
-                print("✅ Dados salvos no Supabase.")
+                if insert_result.data and isinstance(insert_result.data, list):
+                    objeto_id = insert_result.data[0]["id"]
+                    print(f"✅ Objeto salvo com ID: {objeto_id}")
+
+                    estado_resp = supabase_client.table("quadro_estado") \
+                        .select("estado") \
+                        .eq("sessao_id", "sessao123") \
+                        .limit(1) \
+                        .execute()
+
+                    estado_atual = estado_resp.data[0]["estado"] if estado_resp.data else []
+
+                    if tipo == "resetar":
+                        estado_atual = []
+                    elif tipo == "desenho" and acao == "remover_objeto":
+                        objeto_id_removido = conteudo.get("id")
+                        if objeto_id_removido in estado_atual:
+                            estado_atual.remove(objeto_id_removido)
+                    else:
+                        estado_atual.append(objeto_id)
+
+                    supabase_client.table("quadro_estado").update({
+                        "estado": estado_atual,
+                        "atualizado_em": datetime.datetime.utcnow().isoformat()
+                    }).eq("sessao_id", "sessao123").execute()
+                    print("🆙 Estado atualizado com novo ID.")
+
+                    conteudo_com_id = conteudo.copy()
+                    conteudo_com_id["id"] = objeto_id
+
+                    for cliente in frontends:
+                        if cliente.application_state == WebSocketState.CONNECTED and cliente != websocket:
+                            await cliente.send_json({
+                                "tipo": tipo,
+                                "acao": acao,
+                                "conteudo": conteudo_com_id
+                            })
+
+                else:
+                    print("⚠️ Inserção não retornou ID.")
+
             except Exception as e:
-                print("❌ Erro ao salvar no Supabase:", e)
-
-            if tipo == "resetar":
-                atualizar_estado("sessao123", [])
-            else:
-                # Busca o estado com o maior id (último estado salvo)
-                response = supabase.table("quadro_estado") \
-                    .select("estado") \
-                    .eq("sessão_id", "sessao123") \
-                    .order("atualizado_em", desc=True) \
-                    .limit(1) \
-                    .execute()
-                lista_ids = response.data["estado"] if response and response.data and "estado" in response.data else []
-                resultado = supabase.table("objetos") \
-                    .select("id") \
-                    .eq("conteudo", conteudo) \
-                    .neq("acao", "remover_objeto") \
-                    .order("id", desc=True) \
-                    .execute()
-                novo_id = resultado.data[0]["id"] if resultado and resultado.data else None
-                # Adiciona o novo id se não estiver na lista
-                if (novo_id not in lista_ids):
-                    lista_ids.append(novo_id)
-
-                atualizar_estado("sessao123", lista_ids)
-
-            # Enviar para o core
-            if core_ws:
-                await core_ws.send_json({
-                    "grupo": "G7",
-                    "acao": "atualizacao",
-                    "dados": {
-                        "usuario": usuario_email,
-                        "tipo": tipo,
-                        "acao": acao,
-                        "conteudo": conteudo
-                    }
-                })
-
-            # Broadcast para todos os frontends
-            for ws in frontends:
-                await ws.send_json({
-                    "usuario": usuario_email,
-                    "tipo": tipo,
-                    "acao": acao,
-                    "conteudo": conteudo
-                })
+                print("❌ Erro ao salvar ou atualizar estado no Supabase:", e)
 
     except Exception as e:
         print(f"⚠️ {usuario_email} desconectado.")
         print("❌ Erro:", e)
     finally:
         frontends.remove(websocket)
-        # 🔐 Remove locks pendentes do usuário
         for index, dono in list(locks.items()):
             if dono == usuario_id:
                 del locks[index]
                 print(f"🔓 Lock liberado automaticamente do objeto {index} por desconexão")
 
-
-"""
-@app.websocket("/ws/core")
-async def websocket_core(websocket: WebSocket):
-    global core_ws
-    await websocket.accept()
-    core_ws = websocket
-    print("🔗 Conectado ao core.")
-
-    try:
-        while True:
-            data = await websocket.receive_json()
-            print(f"🔁 Recebido do core: {data}")
-
-            for ws in frontends:
-                await ws.send_json(data)
-
-    except WebSocketDisconnect:
-        core_ws = None
-        print("❌ Core desconectado.")
-
-"""
-# Inicializa conexão com core em segundo plano
 threading.Thread(
     target=lambda: start_connection(lambda: len(frontends)),
     daemon=True

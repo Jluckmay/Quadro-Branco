@@ -1,20 +1,23 @@
-import websocket # Importa a biblioteca websocket-client
+import websocket  # Biblioteca websocket-client
 import threading
 import json
 import time
-import supabase
 
+# URL do core WebSocket
 WS_URL = "wss://whiteboard-core.onrender.com"
+
+# Intervalos de tempo (em segundos)
 RETRY_INTERVAL = 30
 SEND_INTERVAL = 10
 
+# Envia periodicamente o estado para o core
 def send_data(ws, get_user_count):
     while True:
         data = {
             "serverId": "main-server-G7",
             "name": "Servidor do G7",
             "roomCount": 1,
-            "userCount": get_user_count(),  # Chamada dinâmica
+            "userCount": get_user_count(),
             "status": "online"
         }
         try:
@@ -25,20 +28,27 @@ def send_data(ws, get_user_count):
             break
         time.sleep(SEND_INTERVAL)
 
+# Ações ao abrir conexão
 def on_open(ws, get_user_count):
     print("[✓] Conectado ao whiteboard-core")
     thread = threading.Thread(target=send_data, args=(ws, get_user_count))
     thread.daemon = True
     thread.start()
 
+# Ações ao fechar conexão
 def on_close(ws, close_status_code, close_msg, get_user_count):
     print("[!] Conexão com core fechada. Reconectando em 30s...")
     time.sleep(RETRY_INTERVAL)
-    start_connection(get_user_count)
+    try:
+        start_connection(get_user_count)
+    except Exception as e:
+        print("❌ Erro ao tentar reconectar:", e)
 
+# Ações em erro
 def on_error(ws, error):
     print("❌ Erro no WebSocket:", error)
 
+# Inicia conexão com o servidor core
 def start_connection(get_user_count):
     ws = websocket.WebSocketApp(
         WS_URL,
@@ -48,5 +58,9 @@ def start_connection(get_user_count):
     )
     ws.run_forever()
 
-def atualizar_estado(sessao_id, lista_ids):
-    supabase.table("quadro_estado").update({"estado": lista_ids, "atualizado_em": "now()"}).eq("sessão_id", sessao_id).execute()
+# Atualiza o estado da sessão no Supabase
+def atualizar_estado(client, sessao_id, lista_ids):
+    client.table("quadro_estado").update({
+        "estado": lista_ids,
+        "atualizado_em": "now()"
+    }).eq("sessao_id", sessao_id).execute()
