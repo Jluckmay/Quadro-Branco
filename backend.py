@@ -145,14 +145,36 @@ async def websocket_frontend(websocket: WebSocket, token: str = Query(None)):
                     try:
                         index = conteudo.get("index")
                         objeto = conteudo.get("objeto")
-
+                        
                         # Atualiza a tabela de objetos no Supabase
                         if isinstance(index, int) and objeto:
                             objeto_str = json.dumps(objeto)
+
+                            # Tenta usar o ID enviado pelo frontend (mais confiável)
+                            objeto_id = objeto.get("id")
+
+                            if not objeto_id:
+                                # Se não tiver ID, tenta buscar o estado atual para obter o ID pelo index
+                                estado_resp = supabase_client.table("quadro_estado") \
+                                    .select("estado") \
+                                    .eq("sessao_id", "sessao123") \
+                                    .limit(1) \
+                                    .execute()
+
+                                estado_atual = estado_resp.data[0]["estado"] if estado_resp.data else []
+                                if isinstance(estado_atual, list) and index < len(estado_atual):
+                                    objeto_id = estado_atual[index]
+                                else:
+                                    print("⚠️ Estado corrompido ou índice inválido. Abortando atualização.")
+                                    continue  # não tenta atualizar
+
+                            # Atualiza o conteúdo no banco
                             supabase_client.table("objetos").update({
                                 "conteudo": objeto_str
-                            }).eq("sessao_id", "sessao123").eq("id", estado[index]).execute()
-                            print(f"📌 Objeto {index} atualizado com nova posição.")
+                            }).eq("id", objeto_id).execute()
+
+                            print(f"📌 Objeto {objeto_id} atualizado com nova posição.")
+
                     except Exception as e:
                         print("❌ Erro ao atualizar posição do objeto:", e)
                     continue
