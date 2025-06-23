@@ -1289,59 +1289,57 @@ this.socket.onmessage = (event) => {
         return;
     }
 
-    if (data.tipo === "lock") {
-        const { acao, conteudo } = data;
-        const index = conteudo.index;
-        const usuarioId = conteudo.usuario_id;
+if (data.tipo === "lock") {
+    const { acao, conteudo } = data;
+    const index = conteudo.index;
+    const usuarioId = conteudo.usuario_id;
 
-        if (acao === "adquirido") {
-            this.lockedObjects[index] = usuarioId;
-            console.log(`🔐 Objeto ${index} bloqueado por ${usuarioId}`);
+    if (acao === "adquirido") {
+        this.lockedObjects[index] = usuarioId;
+        console.log(`🔐 Objeto ${index} bloqueado por ${usuarioId}`);
 
-            // ✅ Inicia arrasto somente se foi o usuário atual que solicitou
-            if (this.lockRequestPending === index && usuarioId === this.usuarioEmail) {
-                this.lockRequestPending = null; // ✅ Zera o pedido pendente
+        // ✅ Verifica se foi o usuário atual que solicitou
+        if (this.lockRequestPending === index && usuarioId === this.usuarioEmail) {
+            const obj = this.state.getObjects()[index];
+            this.selectedObjects = [obj];
 
-                const obj = this.state.getObjects()[index];
-                this.selectedObjects = [obj];
-                this.isDraggingObject = true;
+            const x = this.lastClickX;
+            const y = this.lastClickY;
 
-                const x = this.lastClickX;
-                const y = this.lastClickY;
-
-                switch (obj.type) {
-                    case 'text':
-                        this.dragOffsetX = x - obj.x;
-                        this.dragOffsetY = y - obj.y;
-                        break;
-                    case 'rect':
-                    case 'circle':
-                    case 'line':
-                    case 'star':
-                    case 'arrow':
-                    case 'polygon':
-                        this.dragOffsetX = x - Math.min(obj.startX, obj.endX);
-                        this.dragOffsetY = y - Math.min(obj.startY, obj.endY);
-                        break;
-                    case 'pencil':
-                        this.dragOffsetX = x - obj.points[0].x;
-                        this.dragOffsetY = y - obj.points[0].y;
-                        break;
-                }
-
-                this.redrawCanvas();
+            switch (obj.type) {
+                case 'text':
+                    this.dragOffsetX = x - obj.x;
+                    this.dragOffsetY = y - obj.y;
+                    break;
+                case 'rect':
+                case 'circle':
+                case 'line':
+                case 'star':
+                case 'arrow':
+                case 'polygon':
+                    this.dragOffsetX = x - Math.min(obj.startX, obj.endX);
+                    this.dragOffsetY = y - Math.min(obj.startY, obj.endY);
+                    break;
+                case 'pencil':
+                    this.dragOffsetX = x - obj.points[0].x;
+                    this.dragOffsetY = y - obj.points[0].y;
+                    break;
             }
 
-        } else if (acao === "negado") {
-            this.lockedObjects[index] = usuarioId;
-            console.warn(`🚫 Não foi possível bloquear o objeto ${index} (já está com ${usuarioId})`);
-        } else if (acao === "liberado") {
-            delete this.lockedObjects[index];
-            console.log(`🔓 Objeto ${index} liberado`);
+            this.redrawCanvas();
         }
 
-        return;
+    } else if (acao === "negado") {
+        this.lockedObjects[index] = usuarioId;
+        console.warn(`🚫 Não foi possível bloquear o objeto ${index} (já está com ${usuarioId})`);
+
+    } else if (acao === "liberado") {
+        delete this.lockedObjects[index];
+        console.log(`🔓 Objeto ${index} liberado`);
     }
+    return;
+}
+
 
     if (data.tipo === "resetar") {
         console.log("🧹 Mensagem de reset recebida!");
