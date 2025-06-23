@@ -139,26 +139,24 @@ async def websocket_frontend(websocket: WebSocket, token: str = Query(None)):
             print(f"📥 {usuario_email} enviou: {conteudo}")
 
             try:
+                # Salvando movimentação de objeto (mover_objeto)
                 if tipo == "desenho" and acao == "mover_objeto":
-                    objeto_id = conteudo.get("id")
-                    novo_conteudo = conteudo.get("objeto")
+                    objeto_id = None
+                    try:
+                        index = conteudo.get("index")
+                        objeto = conteudo.get("objeto")
 
-                    if objeto_id and novo_conteudo:
-                        supabase_client.table("objetos").update({
-                            "conteudo": json.dumps(novo_conteudo),
-                            "acao": "mover_objeto"
-                        }).eq("id", objeto_id).execute()
+                        # Atualiza a tabela de objetos no Supabase
+                        if isinstance(index, int) and objeto:
+                            objeto_str = json.dumps(objeto)
+                            supabase_client.table("objetos").update({
+                                "conteudo": objeto_str
+                            }).eq("sessao_id", "sessao123").eq("id", estado[index]).execute()
+                            print(f"📌 Objeto {index} atualizado com nova posição.")
+                    except Exception as e:
+                        print("❌ Erro ao atualizar posição do objeto:", e)
+                    continue
 
-                        print(f"✏️ Objeto {objeto_id} movido e atualizado no Supabase.")
-
-                        for cliente in frontends:
-                            if cliente.application_state == WebSocketState.CONNECTED and cliente != websocket:
-                                await cliente.send_json({
-                                    "tipo": tipo,
-                                    "acao": acao,
-                                    "conteudo": conteudo
-                                })
-                    continue  # pular o insert
 
                 insert_result = supabase_client.table("objetos").insert({
                     "usuario_id": usuario_id,

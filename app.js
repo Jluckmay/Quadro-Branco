@@ -55,27 +55,29 @@ class WhiteboardState {
         return lastAction;
     }
 
-    restoreState(listaDoBackend) {
-        const seenIndices = new Set();
+restoreState(listaDoBackend) {
+    const seenIds = new Set();
+    this.objects = listaDoBackend
+        .filter(obj => obj.acao === 'novo_objeto' && obj.conteudo)
+        .map(obj => {
+            const parsed = typeof obj.conteudo === 'string'
+                ? JSON.parse(obj.conteudo)
+                : obj.conteudo;
 
-        this.objects = listaDoBackend
-            .filter(obj => obj.acao === 'novo_objeto' && obj.conteudo)
-            .map(obj => {
-                const parsed = typeof obj.conteudo === 'string'
-                    ? JSON.parse(obj.conteudo)
-                    : obj.conteudo;
-                return parsed;
-            })
-            .filter((obj, idx, arr) => {
-                const key = JSON.stringify(obj);
-                if (seenIndices.has(key)) return false;
-                seenIndices.add(key);
-                return true;
-            });
+            // ⬅️ Atribui o ID Supabase diretamente no objeto
+            parsed.id = obj.id;
+            return parsed;
+        })
+        .filter(obj => {
+            if (seenIds.has(obj.id)) return false;
+            seenIds.add(obj.id);
+            return true;
+        });
 
-        console.log("🎨 Estado restaurado com objetos únicos:", this.objects.length);
-        this.actionHistory = [];
-    }
+    console.log("🎨 Estado restaurado com objetos únicos:", this.objects.length);
+    this.actionHistory = [];
+}
+
 
 }
 
