@@ -1281,7 +1281,7 @@ dragSelectedObject(e) {
     
 connectWebSocket() {
     const token = localStorage.getItem("access_token");
-    this.socket = new WebSocket(`wss://quadrobranco-ffap.onrender.com/ws/frontend?token=${token}`);
+    this.socket = new WebSocket(`wss://whiteboard-backend-tm2o.onrender.com/ws/frontend?token=${token}`);
 
     this.socket.onopen = () => {
         console.log("✅ Conectado ao backend");
