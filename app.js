@@ -106,6 +106,7 @@ class WhiteboardApp {
             this.setupMultiplayer();
             this.setupLocalDrawingSync()
             this.connectWebSocket();
+            
         }
 
 handleObjectSelection(e) {
@@ -1279,9 +1280,12 @@ connectWebSocket() {
 
 this.socket.onmessage = (event) => {
     const data = JSON.parse(event.data);
+    const { tipo, acao, conteudo } = data;
+
     console.log("📥 Mensagem do backend:", data);
 
-    if (data.tipo === "estado_inicial") {
+    // Estado inicial do quadro
+    if (tipo === "estado_inicial") {
         if (Array.isArray(data.objetos)) {
             this.state.restoreState(data.objetos);
             console.log("🎯 Estado inicial restaurado com", data.objetos.length, "objetos.");
@@ -1290,43 +1294,80 @@ this.socket.onmessage = (event) => {
         return;
     }
 
-if (acao === "adquirido") {
-    this.lockedObjects[index] = usuarioId;
-    console.log(`🔐 Objeto ${index} bloqueado por ${usuarioId}`);
+    // Controle de locks
+    if (tipo === "lock") {
+        const { index, usuario_id: usuarioId } = conteudo;
 
-    // ✅ Inicia movimento SOMENTE se o lock foi pedido por você
-    if (this.lockRequestPending === index && usuarioId === this.usuarioEmail) {
-        const obj = this.state.getObjects()[index];
-        this.selectedObjects = [obj];
-        this.isDraggingObject = true;
+        if (acao === "adquirido") {
+            this.lockedObjects[index] = usuarioId;
+            console.log(`🔐 Objeto ${index} bloqueado por ${usuarioId}`);
 
-        const x = this.lastClickX;
-        const y = this.lastClickY;
+            // Só inicia arrasto se o lock foi solicitado por este usuário
+            if (this.lockRequestPending === index && usuarioId === this.usuarioEmail) {
+                const obj = this.state.getObjects()[index];
+                this.selectedObjects = [obj];
+                this.isDraggingObject = true;
 
-        switch (obj.type) {
-            case 'text':
-                this.dragOffsetX = x - obj.x;
-                this.dragOffsetY = y - obj.y;
-                break;
-            case 'rect':
-            case 'circle':
-            case 'line':
-            case 'star':
-            case 'arrow':
-            case 'polygon':
-                this.dragOffsetX = x - Math.min(obj.startX, obj.endX);
-                this.dragOffsetY = y - Math.min(obj.startY, obj.endY);
-                break;
-            case 'pencil':
-                this.dragOffsetX = x - obj.points[0].x;
-                this.dragOffsetY = y - obj.points[0].y;
-                break;
+                const x = this.lastClickX;
+                const y = this.lastClickY;
+
+                switch (obj.type) {
+                    case 'text':
+                        this.dragOffsetX = x - obj.x;
+                        this.dragOffsetY = y - obj.y;
+                        break;
+                    case 'rect':
+                    case 'circle':
+                    case 'line':
+                    case 'star':
+                    case 'arrow':
+                    case 'polygon':
+                        this.dragOffsetX = x - Math.min(obj.startX, obj.endX);
+                        this.dragOffsetY = y - Math.min(obj.startY, obj.endY);
+                        break;
+                    case 'pencil':
+                        this.dragOffsetX = x - obj.points[0].x;
+                        this.dragOffsetY = y - obj.points[0].y;
+                        break;
+                }
+
+                this.redrawCanvas();
+            }
+
+        } else if (acao === "liberado") {
+            delete this.lockedObjects[index];
+            console.log(`🔓 Objeto ${index} liberado`);
+
+        } else if (acao === "negado") {
+            console.log(`🚫 Lock negado no objeto ${index}. Já está com ${usuarioId}`);
         }
 
+        return;
+    }
+
+    // Desenhos recebidos (mover, novo, remover)
+    if (tipo === "desenho") {
+        if (acao === "novo_objeto") {
+            this.state.addObject(conteudo);
+            console.log("🆕 Novo objeto desenhado.");
+        } else if (acao === "mover_objeto") {
+            const index = conteudo.index;
+            this.state.objects[index] = conteudo.objeto;
+            console.log(`✏️ Objeto ${index} movido.`);
+        } else if (acao === "remover_objeto") {
+            const index = conteudo.index;
+            this.state.removeObject(index);
+            console.log(`❌ Objeto ${index} removido.`);
+        }
         this.redrawCanvas();
     }
-}
 
+    // Resetar o quadro
+    if (tipo === "resetar") {
+        this.state = new WhiteboardState();
+        console.log("🧹 Quadro resetado.");
+        this.redrawCanvas();
+    }
 
 
     if (data.tipo === "resetar") {
