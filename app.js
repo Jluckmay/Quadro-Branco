@@ -1300,6 +1300,8 @@ this.socket.onmessage = (event) => {
 
             // ✅ Inicia arrasto somente se foi o usuário atual que solicitou
             if (this.lockRequestPending === index && usuarioId === this.usuarioEmail) {
+                this.lockRequestPending = null; // ✅ Zera o pedido pendente
+
                 const obj = this.state.getObjects()[index];
                 this.selectedObjects = [obj];
                 this.isDraggingObject = true;
@@ -1329,6 +1331,7 @@ this.socket.onmessage = (event) => {
 
                 this.redrawCanvas();
             }
+
         } else if (acao === "negado") {
             this.lockedObjects[index] = usuarioId;
             console.warn(`🚫 Não foi possível bloquear o objeto ${index} (já está com ${usuarioId})`);
