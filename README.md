@@ -14,7 +14,7 @@ Este projeto foi desenvolvido como parte da disciplina de **Sistemas Distribuíd
 - Comunicação assíncrona e indireta
 - Controle de concorrência
 - Tolerância a falhas
-- Arquiteturas distribuídas com Pub/Sub ou WebSocket
+- Arquiteturas distribuídas com WebSocket
 
 ## 🧰 Tecnologias utilizadas
 - Frontend: HTML, CSS, JavaScript, Canvas API
@@ -35,7 +35,7 @@ Este projeto foi desenvolvido como parte da disciplina de **Sistemas Distribuíd
 pip install -r requirements.txt
 ```
 
-2. Altere o websocket, na linha 1222 do arquivo app.js, para o local: ws://127.0.0.1:8000/ws/frontend
+2. Altere o websocket, na linha 1222 do arquivo app.js, para o local: ``ws://127.0.0.1:8000/ws/frontend``
 
 3. Execute o backend:
 ```
@@ -54,13 +54,11 @@ As alterações no desenho são enviadas automaticamente ao backend.
 
 A interface registra ações como:
 
-🗣 envio de texto
+✏️ Modificação no desenho
 
-✏️ modificação no desenho
+↩️ Desfazer
 
-↩️ desfazer
-
-🗑 apagar a lousa
+🗑 Apagar a lousa
 
 
 ## 📄 Licença
