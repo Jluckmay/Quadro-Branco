@@ -6,6 +6,7 @@ from supabase import create_client, Client
 import datetime
 from jose import jwt, JWTError
 import json
+import asyncio
 
 SUPABASE_URL = "https://dayvyzxacovefbjgluaq.supabase.co"
 SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRheXZ5enhhY292ZWZiamdsdWFxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDk0MjE0MDAsImV4cCI6MjA2NDk5NzQwMH0.ofuj_A96OXS1eJ7b_F-f0-9AjJtWNX-sS8cavcdIqNY"
@@ -89,11 +90,31 @@ async def websocket_frontend(websocket: WebSocket, token: str = Query(None)):
                     if locks.get(index) in [None, usuario_id]:
                         locks[index] = usuario_id
                         print(f"🔒 Lock adquirido por {usuario_email} no objeto {index}")
+
+                        # ✅ Responde ao frontend que o lock foi adquirido
                         await websocket.send_json({
                             "tipo": "lock",
                             "acao": "adquirido",
                             "conteudo": {"index": index, "usuario_id": usuario_id}
                         })
+
+                        # ✅ Agendamento de liberação automática após 2 segundos
+                        async def liberar_lock_automaticamente(index_local, dono_lock, ws_ref):
+                            await asyncio.sleep(2)
+                            if locks.get(index_local) == dono_lock:
+                                del locks[index_local]
+                                print(f"⏲️ Lock expirado automaticamente no objeto {index_local} (usuário {dono_lock})")
+                                try:
+                                    await ws_ref.send_json({
+                                        "tipo": "lock",
+                                        "acao": "liberado",
+                                        "conteudo": {"index": index_local}
+                                    })
+                                except:
+                                    print("⚠️ Não foi possível notificar cliente sobre liberação automática.")
+
+                        asyncio.create_task(liberar_lock_automaticamente(index, usuario_id, websocket))
+
                     else:
                         print(f"❌ Lock negado para {usuario_email} no objeto {index} (já está com {locks.get(index)})")
                         await websocket.send_json({
