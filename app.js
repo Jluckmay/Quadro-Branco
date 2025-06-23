@@ -56,15 +56,24 @@ class WhiteboardState {
     }
 
     restoreState(listaDoBackend) {
+        const seenIndices = new Set();
+
         this.objects = listaDoBackend
             .filter(obj => obj.acao === 'novo_objeto' && obj.conteudo)
             .map(obj => {
                 const parsed = typeof obj.conteudo === 'string'
                     ? JSON.parse(obj.conteudo)
                     : obj.conteudo;
-                console.log("🎨 Restaurando objeto:", parsed);
                 return parsed;
+            })
+            .filter((obj, idx, arr) => {
+                const key = JSON.stringify(obj);
+                if (seenIndices.has(key)) return false;
+                seenIndices.add(key);
+                return true;
             });
+
+        console.log("🎨 Estado restaurado com objetos únicos:", this.objects.length);
         this.actionHistory = [];
     }
 
@@ -1292,6 +1301,11 @@ this.socket.onmessage = (event) => {
         return;
     }
 
+    if (data.usuario === this.usuarioEmail) {
+    // Ignora mensagens que foram enviadas por mim mesmo
+    return;
+    }
+
     // Lock handling
     if (tipo === "lock") {
         const { index, usuario_id: usuarioId } = conteudo;
@@ -1363,7 +1377,7 @@ if (tipo === "desenho") {
                 // Se a mensagem veio do próprio usuário e o objeto já está movido localmente, ignore
                 if (data.usuario === this.usuarioEmail) {
                     console.log(`🔁 Ignorando mover_objeto duplicado do próprio usuário no index ${conteudo.index}`);
-                    break;
+                    return;
                 }
 
                 this.state.objects[conteudo.index] = conteudo.objeto;
