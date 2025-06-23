@@ -73,7 +73,6 @@ async def websocket_frontend(websocket: WebSocket, token: str = Query(None)):
     frontends.add(websocket)
     print(f"🔌 Frontend conectado: {usuario_email}")
 
-
     try:
         while True:
             if websocket.application_state != WebSocketState.CONNECTED:
@@ -91,7 +90,6 @@ async def websocket_frontend(websocket: WebSocket, token: str = Query(None)):
                         locks[index] = usuario_id
                         print(f"🔒 Lock adquirido por {usuario_email} no objeto {index}")
 
-                        # ✅ Responde ao frontend que o lock foi adquirido
                         for cliente in frontends:
                             if cliente.application_state == WebSocketState.CONNECTED:
                                 await cliente.send_json({
@@ -99,23 +97,19 @@ async def websocket_frontend(websocket: WebSocket, token: str = Query(None)):
                                     "acao": "adquirido",
                                     "conteudo": {"index": index, "usuario_id": usuario_id}
                                 })
-                        # ✅ Agendamento de liberação automática após 2 segundos
+
                         async def liberar_lock_automaticamente(index_local, dono_lock, ws_ref):
                             await asyncio.sleep(2)
                             if locks.get(index_local) == dono_lock:
                                 del locks[index_local]
                                 print(f"⏲️ Lock expirado automaticamente no objeto {index_local} (usuário {dono_lock})")
-                                try:
-                                    for cliente in frontends:
-                                        if cliente.application_state == WebSocketState.CONNECTED:
-                                            await cliente.send_json({
-                                                "tipo": "lock",
-                                                "acao": "liberado",
-                                                "conteudo": {"index": index_local}
-                                            })
-
-                                except:
-                                    print("⚠️ Não foi possível notificar cliente sobre liberação automática.")
+                                for cliente in frontends:
+                                    if cliente.application_state == WebSocketState.CONNECTED:
+                                        await cliente.send_json({
+                                            "tipo": "lock",
+                                            "acao": "liberado",
+                                            "conteudo": {"index": index_local}
+                                        })
 
                         asyncio.create_task(liberar_lock_automaticamente(index, usuario_id, websocket))
 
@@ -145,6 +139,29 @@ async def websocket_frontend(websocket: WebSocket, token: str = Query(None)):
             print(f"📥 {usuario_email} enviou: {conteudo}")
 
             try:
+                # 🛠 Persistência da movimentação
+                if tipo == "desenho" and acao == "mover_objeto":
+                    objeto_id = conteudo.get("id") or conteudo.get("index")
+                    novo_conteudo = conteudo.get("objeto")
+
+                    if objeto_id is not None and novo_conteudo:
+                        supabase_client.table("objetos").update({
+                            "conteudo": json.dumps(novo_conteudo),
+                            "acao": "mover_objeto"
+                        }).eq("id", objeto_id).execute()
+
+                        print(f"✏️ Objeto {objeto_id} movido e atualizado no Supabase.")
+
+                        for cliente in frontends:
+                            if cliente.application_state == WebSocketState.CONNECTED and cliente != websocket:
+                                await cliente.send_json({
+                                    "tipo": tipo,
+                                    "acao": acao,
+                                    "conteudo": conteudo
+                                })
+                    continue  # pular o insert
+
+                # Inserção padrão (novo objeto, resetar etc.)
                 insert_result = supabase_client.table("objetos").insert({
                     "usuario_id": usuario_id,
                     "sessao_id": "sessao123",
@@ -166,7 +183,7 @@ async def websocket_frontend(websocket: WebSocket, token: str = Query(None)):
                     estado_atual = estado_resp.data[0]["estado"] if estado_resp.data else []
 
                     if tipo == "resetar":
-                        estado_atual = []  # limpa tudo
+                        estado_atual = []
                     elif tipo == "desenho" and acao == "remover_objeto":
                         objeto_id_removido = conteudo.get("id")
                         if objeto_id_removido in estado_atual:
@@ -180,7 +197,6 @@ async def websocket_frontend(websocket: WebSocket, token: str = Query(None)):
                     }).eq("sessao_id", "sessao123").execute()
                     print("🆙 Estado atualizado com novo ID.")
 
-                    # Broadcast da ação para todos os outros frontends conectados
                     for cliente in frontends:
                         if cliente.application_state == WebSocketState.CONNECTED and cliente != websocket:
                             await cliente.send_json({
@@ -204,6 +220,7 @@ async def websocket_frontend(websocket: WebSocket, token: str = Query(None)):
             if dono == usuario_id:
                 del locks[index]
                 print(f"🔓 Lock liberado automaticamente do objeto {index} por desconexão")
+
 
 threading.Thread(
     target=lambda: start_connection(lambda: len(frontends)),

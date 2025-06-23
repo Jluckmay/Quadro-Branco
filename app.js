@@ -81,7 +81,7 @@ class WhiteboardState {
 
 
 class WhiteboardApp {
-        constructor() {
+        constructor(usuarioId, usuarioEmail) {
             
             this.usuarioEmail = localStorage.getItem("usuario_email");
             this.usuarioId = localStorage.getItem("usuario_id");
@@ -117,23 +117,10 @@ class WhiteboardApp {
             this.initializeCanvas();
             this.setupEventListeners();
             this.setupMultiplayer();
+            this.setupLocalDrawingSync()
             this.connectWebSocket();
             
         }
-
-enviarObjetoParaBackend(obj) {
-    if (this.socket && this.socket.readyState === WebSocket.OPEN) {
-        const msg = {
-            usuario: this.usuarioEmail,
-            tipo: "desenho",
-            acao: "novo_objeto",
-            conteudo: obj
-        };
-        console.log("📤 Enviando objeto via WebSocket:", msg);
-        this.socket.send(JSON.stringify(msg));
-    }
-}
-
 
 handleObjectSelection(e) {
     if (this.isDraggingObject) {
@@ -442,48 +429,149 @@ stopDraggingObject(e) {
 
 
     stopDrawing(e) {
-    if (!this.isDrawing) return;
+        if (!this.isDrawing) return;
 
-    this.isDrawing = false;
+        this.isDrawing = false;
 
-    if (!this.currentObject) return;
+        switch (this.currentTool) {
+            case 'pencil':
+                if (this.currentObject && this.currentObject.points.length > 1) {
+                    const index = this.state.addObject(this.currentObject);
+                    this.state.recordAction({
+                        type: 'add',
+                        objectIndex: index
+                    });
+                }
+                break;
+            case 'rect':
+                const rect = this.canvas.getBoundingClientRect();
+                const x = e.clientX - rect.left;
+                const y = e.clientY - rect.top;
 
-    const rect = this.canvas.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
+                const newObject = {
+                    type: 'rect',
+                    startX: this.startX,
+                    startY: this.startY,
+                    endX: x,
+                    endY: y,
+                    color: this.currentColor
+                };
+                const index = this.state.addObject(newObject);
+                this.state.recordAction({
+                    type: 'add',
+                    objectIndex: index
+                });
+                break;
+            case 'circle':
+                const circleRect = this.canvas.getBoundingClientRect();
+                const circleX = e.clientX - circleRect.left;
+                const circleY = e.clientY - circleRect.top;
 
-    switch (this.currentTool) {
-        case 'pencil':
-            if (this.currentObject.points.length > 1) {
-                this.enviarObjetoParaBackend(this.currentObject);
-            }
-            break;
+                const newCircleObject = {
+                    type: 'circle',
+                    startX: this.startX,
+                    startY: this.startY,
+                    endX: circleX,
+                    endY: circleY,
+                    color: this.currentColor
+                };
+                const circleIndex = this.state.addObject(newCircleObject);
+                this.state.recordAction({
+                    type: 'add',
+                    objectIndex: circleIndex
+                });
+                break;
+            case 'line':
+            case 'star':
+            case 'arrow':
+            case 'polygon':
+                if (this.currentObject) {
+                    const index = this.state.addObject(this.currentObject);
+                    this.state.recordAction({
+                        type: 'add',
+                        objectIndex: index
+                    });
+                }
+                break;
+            case 'text':
+                break;
+        }
 
-        case 'rect':
-        case 'circle':
-            this.currentObject.endX = x;
-            this.currentObject.endY = y;
-            this.enviarObjetoParaBackend(this.currentObject);
-            break;
-
-        case 'line':
-        case 'star':
-        case 'arrow':
-        case 'polygon':
-            this.currentObject.endX = x;
-            this.currentObject.endY = y;
-            this.enviarObjetoParaBackend(this.currentObject);
-            break;
-
-        case 'text':
-            // Texto já é tratado em startDrawing
-            break;
+        this.currentObject = null;
+        this.redrawCanvas();
     }
 
-    this.currentObject = null;
-    this.redrawCanvas();
-}
+    drawText(text, x, y) {
+        const textObject = {
+            type: 'text',
+            text: text,
+            x: x,
+            y: y,
+            color: this.currentColor,
+            width: 0,
+            height: 16
+        };
 
+        this.state.addObject(textObject);
+        this.redrawCanvas();
+    }
+
+    undo() {
+        const lastAction = this.state.undoLastAction();
+
+        if (lastAction) {
+            switch (lastAction.type) {
+                case 'add':
+                    if (this.state.objects.length > 0) {
+                        this.state.undo();
+                    }
+                    break;
+                case 'delete':
+                    if (lastAction.objects) {
+                        lastAction.objects.forEach(obj => {
+                            this.state.objects.push(obj);
+                        });
+                    }
+                    break;
+                case 'move':
+                    if (lastAction.originalPositions) {
+                        lastAction.originalPositions.forEach((originalPos, index) => {
+                            const obj = this.state.objects[index];
+                            if (obj) {
+                                switch (obj.type) {
+                                    case 'text':
+                                        obj.x = originalPos.x;
+                                        obj.y = originalPos.y;
+                                        break;
+                                    case 'rect':
+                                    case 'circle':
+                                        obj.startX = originalPos.startX;
+                                        obj.startY = originalPos.startY;
+                                        obj.endX = originalPos.endX;
+                                        obj.endY = originalPos.endY;
+                                        break;
+                                    case 'pencil':
+                                        obj.points = originalPos.points;
+                                        break;
+                                    case 'line':
+                                    case 'star':
+                                    case 'arrow':
+                                    case 'polygon':
+                                        obj.startX = originalPos.startX;
+                                        obj.startY = originalPos.startY;
+                                        obj.endX = originalPos.endX;
+                                        obj.endY = originalPos.endY;
+                                        break;
+                                }
+                            }
+                        });
+                    }
+                    break;
+            }
+
+            this.redrawCanvas();
+        }
+    }
 
     redo() {
         const redoObject = this.state.redo();
@@ -1028,39 +1116,31 @@ dragSelectedObject(e) {
         }
     }
 
-setupLocalDrawingSync() {
-    if (!this.state || typeof this.state.addObject !== "function") {
-        console.error("❌ this.state ou this.state.addObject está undefined no momento da bind.");
-        return;
-    }
+    setupLocalDrawingSync() {
+        // 🔄 Adiciona objeto
+        const originalAddObject = this.state.addObject.bind(this.state);
+        this.state.addObject = (obj) => {
+            const index = originalAddObject(obj);
+            
+            if (this.room) {
+                this.room.updateRoomState({
+                    [`object_${index}`]: obj
+                });
+            }
 
-    const originalAddObject = this.state.addObject.bind(this.state);
+            if (this.socket && this.socket.readyState === WebSocket.OPEN) {
+                const msg = {
+                    usuario: this.usuarioEmail,
+                    tipo: "desenho",
+                    acao: "novo_objeto",
+                    conteudo: obj
+                };
+                console.log("📤 Enviando objeto via WebSocket:", msg);
+                this.socket.send(JSON.stringify(msg));
+            }
 
-    this.state.addObject = (obj) => {
-        // Envia para WebSocket
-        if (this.socket && this.socket.readyState === WebSocket.OPEN) {
-            const msg = {
-                usuario: this.usuarioEmail,
-                tipo: "desenho",
-                acao: "novo_objeto",
-                conteudo: obj
-            };
-            console.log("📤 Enviando objeto via WebSocket:", msg);
-            this.socket.send(JSON.stringify(msg));
-        }
-
-        // Envia para o sistema multiplayer (se ativado)
-        if (this.room) {
-            this.room.updateRoomState({
-                [`object_${this.state.objects.length}`]: obj
-            });
-        }
-
-        // Não adiciona localmente — aguarda resposta do backend
-        return this.state.objects.length;
-    };
-
-
+            return index;
+        };
     
         // ❌ Remove objeto
         const originalRemoveObject = this.state.removeObject.bind(this.state);
@@ -1203,9 +1283,6 @@ connectWebSocket() {
 
     this.socket.onopen = () => {
         console.log("✅ Conectado ao backend");
-        
-        this.setupLocalDrawingSync();
-
     };
 
 this.socket.onmessage = (event) => {
