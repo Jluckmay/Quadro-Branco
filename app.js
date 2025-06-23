@@ -131,10 +131,10 @@ handleObjectSelection(e) {
 
         if (lockedBy && lockedBy !== currentUser) {
             console.log(`🔒 Objeto ${index} está bloqueado por ${lockedBy}.`);
-            return;
+            return; // ignora objetos bloqueados por outro usuário
         }
 
-        if (this.selectedObjects.length > 0) return; // Seleciona apenas o primeiro válido
+        if (this.selectedObjects.length > 0) return; // seleciona apenas o primeiro objeto válido
 
         let isSelected = false;
         switch (obj.type) {
@@ -168,6 +168,7 @@ handleObjectSelection(e) {
             this.selectedObjects.push(obj);
             this.lockRequestPending = index;
 
+            // 🔐 Solicita lock somente após seleção bem-sucedida
             if (this.socket && this.socket.readyState === WebSocket.OPEN) {
                 console.log(`🔒 Solicitando lock para o objeto ${index}`);
                 this.socket.send(JSON.stringify({
@@ -178,8 +179,8 @@ handleObjectSelection(e) {
             }
         }
     });
-    
 }
+
 
 
 
@@ -724,69 +725,60 @@ stopDraggingObject(e) {
 
    
 
-        dragSelectedObject(e) {
-        if (!this.isDraggingObject || this.selectedObjects.length === 0) return;
+dragSelectedObject(e) {
+    if (!this.isDraggingObject || this.selectedObjects.length === 0) return;
 
-        const index = this.state.getObjects().indexOf(this.selectedObjects[0]);
-        const lockedBy = this.lockedObjects[index];
+    const obj = this.selectedObjects[0];
+    const index = this.state.getObjects().indexOf(obj);
+    const lockedBy = this.lockedObjects?.[index];
 
-        if (lockedBy && lockedBy !== this.usuarioEmail) {
-            console.log(`🚫 Você não tem permissão para mover o objeto ${index}.`);
-            return;
-        }
-
-        const rect = this.canvas.getBoundingClientRect();
-        const x = e.clientX - rect.left;
-        const y = e.clientY - rect.top;
-
-        const obj = this.selectedObjects[0];
-
-        // Atualiza posição com base no tipo
-        switch (obj.type) {
-            case 'text':
-                obj.x = x - this.dragOffsetX;
-                obj.y = y - this.dragOffsetY;
-                break;
-            case 'rect':
-            case 'circle':
-            case 'line':
-            case 'star':
-            case 'arrow':
-            case 'polygon':
-                const deltaX = x - this.dragOffsetX - Math.min(obj.startX, obj.endX);
-                const deltaY = y - this.dragOffsetY - Math.min(obj.startY, obj.endY);
-                obj.startX += deltaX;
-                obj.endX += deltaX;
-                obj.startY += deltaY;
-                obj.endY += deltaY;
-                break;
-            case 'pencil':
-                const offsetX = x - this.dragOffsetX;
-                const offsetY = y - this.dragOffsetY;
-                const deltaPX = offsetX - obj.points[0].x;
-                const deltaPY = offsetY - obj.points[0].y;
-                obj.points.forEach(p => {
-                    p.x += deltaPX;
-                    p.y += deltaPY;
-                });
-                break;
-        }
-
-        // Enviar atualização
-        if (this.socket && this.socket.readyState === WebSocket.OPEN) {
-            this.socket.send(JSON.stringify({
-                tipo: "desenho",
-                acao: "mover_objeto",
-                conteudo: {
-                    index,
-                    objeto: obj
-                },
-                usuario: this.usuarioEmail
-            }));
-        }
-
-        this.redrawCanvas();
+    // Verifica se o objeto está realmente travado por este usuário
+    if (!lockedBy || lockedBy !== this.usuarioEmail) {
+        console.log(`🚫 Você não tem permissão para mover o objeto ${index}.`);
+        return;
     }
+
+    const rect = this.canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+
+    // Atualiza a posição com base no tipo
+    switch (obj.type) {
+        case 'text':
+            obj.x = x - this.dragOffsetX;
+            obj.y = y - this.dragOffsetY;
+            break;
+
+        case 'rect':
+        case 'circle':
+        case 'line':
+        case 'star':
+        case 'arrow':
+        case 'polygon':
+            const deltaX = x - this.dragOffsetX - Math.min(obj.startX, obj.endX);
+            const deltaY = y - this.dragOffsetY - Math.min(obj.startY, obj.endY);
+            obj.startX += deltaX;
+            obj.endX += deltaX;
+            obj.startY += deltaY;
+            obj.endY += deltaY;
+            break;
+
+        case 'pencil':
+            const offsetX = x - this.dragOffsetX;
+            const offsetY = y - this.dragOffsetY;
+            const deltaPX = offsetX - obj.points[0].x;
+            const deltaPY = offsetY - obj.points[0].y;
+            obj.points.forEach(p => {
+                p.x += deltaPX;
+                p.y += deltaPY;
+            });
+            break;
+    }
+
+    // Re-renderiza o canvas local
+    this.redrawCanvas();
+}
+
 
 
     stopDraggingObject(e) {
