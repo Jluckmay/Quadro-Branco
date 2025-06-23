@@ -209,7 +209,7 @@ stopDraggingObject(e) {
                 usuario: this.usuarioEmail,
                 tipo: "desenho",
                 acao: "mover_objeto",
-                conteudo: { index, objeto: obj }
+                conteudo: { id: obj.id, objeto: obj }
             }));
 
             // Libera o lock do objeto
@@ -1359,8 +1359,13 @@ this.socket.onmessage = (event) => {
 if (tipo === "desenho") {
     switch (acao) {
         case "novo_objeto":
-            if (conteudo && typeof conteudo === "object") {
+           if (conteudo && typeof conteudo === "object") {
+
                 this.state.objects.push(conteudo);
+
+                if (this.currentObject && conteudo.id) {
+                    this.currentObject.id = conteudo.id;
+                }
                 console.log("🆕 Novo objeto desenhado.");
             } else {
                 console.warn("⚠️ Objeto inválido recebido em novo_objeto:", conteudo);

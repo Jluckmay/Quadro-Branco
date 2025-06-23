@@ -139,12 +139,11 @@ async def websocket_frontend(websocket: WebSocket, token: str = Query(None)):
             print(f"📥 {usuario_email} enviou: {conteudo}")
 
             try:
-                # 🛠 Persistência da movimentação
                 if tipo == "desenho" and acao == "mover_objeto":
-                    objeto_id = conteudo.get("id") or conteudo.get("index")
+                    objeto_id = conteudo.get("id")
                     novo_conteudo = conteudo.get("objeto")
 
-                    if objeto_id is not None and novo_conteudo:
+                    if objeto_id and novo_conteudo:
                         supabase_client.table("objetos").update({
                             "conteudo": json.dumps(novo_conteudo),
                             "acao": "mover_objeto"
@@ -161,7 +160,6 @@ async def websocket_frontend(websocket: WebSocket, token: str = Query(None)):
                                 })
                     continue  # pular o insert
 
-                # Inserção padrão (novo objeto, resetar etc.)
                 insert_result = supabase_client.table("objetos").insert({
                     "usuario_id": usuario_id,
                     "sessao_id": "sessao123",
@@ -197,12 +195,15 @@ async def websocket_frontend(websocket: WebSocket, token: str = Query(None)):
                     }).eq("sessao_id", "sessao123").execute()
                     print("🆙 Estado atualizado com novo ID.")
 
+                    conteudo_com_id = conteudo.copy()
+                    conteudo_com_id["id"] = objeto_id
+
                     for cliente in frontends:
                         if cliente.application_state == WebSocketState.CONNECTED and cliente != websocket:
                             await cliente.send_json({
                                 "tipo": tipo,
                                 "acao": acao,
-                                "conteudo": conteudo
+                                "conteudo": conteudo_com_id
                             })
 
                 else:
@@ -220,7 +221,6 @@ async def websocket_frontend(websocket: WebSocket, token: str = Query(None)):
             if dono == usuario_id:
                 del locks[index]
                 print(f"🔓 Lock liberado automaticamente do objeto {index} por desconexão")
-
 
 threading.Thread(
     target=lambda: start_connection(lambda: len(frontends)),
